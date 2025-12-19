@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "App Fichaje Palacín",
+    "slug": "app-fichaje-palacin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logoblanco.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/fondo.jpg",
+      "resizeMode": "cover",
+      "backgroundColor": "#1E3A8A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.palacin.fichaje"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logoblanco.png",
+        "backgroundColor": "#1E3A8A"
+      },
+      "package": "com.palacin.fichaje"
+    },
+    "web": {
+      "favicon": "./assets/logoblanco.png"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.0"
+          }
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e76ddbc7-f593-4196-b452-f568c9635357"
+      }
+    }
+  }
+}
