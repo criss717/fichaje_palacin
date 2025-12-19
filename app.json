@@ -29,18 +29,7 @@
       "favicon": "./assets/logoblanco.png"
     },
     "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "1.9.24",
-            "extraFreeCompilerArgs": [
-              "-P",
-              "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
-            ]
-          }
-        }
-      ],
+      "expo-build-properties",
       "expo-asset",
       "expo-font"
     ],
