@@ -33,7 +33,11 @@
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "1.7.20"
+            "kotlinVersion": "1.9.24",
+            "extraFreeCompilerArgs": [
+              "-P",
+              "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
+            ]
           }
         }
       ],
