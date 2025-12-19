@@ -7,8 +7,8 @@
     "icon": "./assets/logoblanco.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/fondo.jpg",
-      "resizeMode": "cover",
+      "image": "./assets/logoblanco.png",
+      "resizeMode": "contain",
       "backgroundColor": "#1E3A8A"
     },
     "assetBundlePatterns": [
@@ -29,7 +29,18 @@
       "favicon": "./assets/logoblanco.png"
     },
     "plugins": [
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.24",
+            "extraFreeCompilerArgs": [
+              "-P",
+              "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
+            ]
+          }
+        }
+      ],
       "expo-asset",
       "expo-font"
     ],
