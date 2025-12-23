@@ -10,7 +10,6 @@ const UserDashboard = () => {
     const { profile, signOut } = useAuth();
     const [todayEntries, setTodayEntries] = useState({ entrada: null, salida: null });
     const [loading, setLoading] = useState(false);
-    const [isBlocked, setIsBlocked] = useState(false);
 
     useEffect(() => {
         setupNotifications();
@@ -56,18 +55,21 @@ const UserDashboard = () => {
                     const diffMs = new Date() - lastEntryDate;
                     const diffHours = diffMs / (1000 * 60 * 60);
 
+                    // Preparar la fecha de salida a las 23:59:59 del día de la entrada
+                    const correctiveExitDate = new Date(lastEntryDate);
+                    correctiveExitDate.setHours(23, 59, 59, 999);
+
                     if (diffHours > 10) {
-                        setIsBlocked(true);
                         Alert.alert(
                             '⚠️ Jornada Excedida',
-                            `Tu última entrada fue el ${formatDate(lastEntryDate)} a las ${formatTime(lastEntryDate)}.\n\nHan pasado más de 10 horas. Por favor, habla con Administración para regularizar tu fichaje.`,
-                            [{ text: 'Entendido' }]
+                            `Tu última entrada fue el ${formatDate(lastEntryDate)} a las ${formatTime(lastEntryDate)}.\n\nHan pasado más de 10 horas. Se cerrará esta sesión a las 23:59 de ese día para que puedas fichar hoy, pero deberás avisar a Administración para regularizar las horas reales.`,
+                            [{ text: 'Cerrar y Fichar Hoy', onPress: () => handleFichaje('salida', correctiveExitDate) }]
                         );
                     } else {
                         Alert.alert(
                             '📝 Fichaje Pendiente',
-                            `No fichaste la salida el día ${formatDate(lastEntryDate)}.\n\nPor favor, ficha la SALIDA ahora para poder iniciar tu jornada de hoy.`,
-                            [{ text: 'Fichar Salida Olvidada', onPress: () => handleFichaje('salida', lastEntry.id) }]
+                            `No fichaste la salida el día ${formatDate(lastEntryDate)}.\n\nSe cerrará esa sesión a las 23:59 de ese día para que puedas iniciar tu jornada de hoy.`,
+                            [{ text: 'Cerrar y Fichar Hoy', onPress: () => handleFichaje('salida', correctiveExitDate) }]
                         );
                     }
                 }
@@ -100,11 +102,7 @@ const UserDashboard = () => {
         }
     };
 
-    const handleFichaje = async (type) => {
-        if (isBlocked) {
-            Alert.alert('Bloqueado', 'Debes contactar con administración.');
-            return;
-        }
+    const handleFichaje = async (type, customTimestamp = null) => {
 
         // Validaciones para día actual (solo si no es una corrección forzada)
         if (type === 'entrada' && todayEntries.entrada) {
@@ -113,7 +111,7 @@ const UserDashboard = () => {
         }
 
         // Si intenta fichar salida normal pero ya tiene una hoy (después de la entrada)
-        if (type === 'salida' && todayEntries.salida) {
+        if (type === 'salida' && todayEntries.salida && !customTimestamp) {
             Alert.alert('Aviso', 'Ya has fichado salida hoy');
             return;
         }
@@ -122,11 +120,19 @@ const UserDashboard = () => {
             setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
 
+            const entryData = {
+                user_id: user.id,
+                entry_type: type
+            };
+
+            // Si es una corrección, usamos el timestamp preventivo (23:59 del día anterior)
+            if (customTimestamp) {
+                entryData.timestamp = customTimestamp.toISOString();
+            }
+
             const { error } = await supabase
                 .from('time_entries')
-                .insert([
-                    { user_id: user.id, entry_type: type }
-                ]);
+                .insert([entryData]);
 
             if (error) throw error;
 

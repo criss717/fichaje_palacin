@@ -36,8 +36,8 @@ export async function scheduleClockOutReminder() {
     await cancelAllNotifications();
 
     const trigger = new Date();
-    trigger.setHours(20);
-    trigger.setMinutes(0);
+    trigger.setHours(18);
+    trigger.setMinutes(15);
     trigger.setSeconds(0);
 
     // Si ya pasaron las 20:00 hoy, programamos para mañana
@@ -51,7 +51,9 @@ export async function scheduleClockOutReminder() {
             body: "Aún no has fichado tu salida hoy. Por favor, hazlo ahora.",
             data: { screen: 'UserDashboard' },
         },
-        trigger,
+        trigger: {
+            date: trigger,
+        },
     });
 
     console.log('Notificación programada para:', trigger.toLocaleString());
