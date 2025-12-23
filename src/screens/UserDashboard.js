@@ -4,13 +4,16 @@ import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
 import { formatDate, formatTime, isToday } from '../utils/helpers';
+import { registerForPushNotificationsAsync, scheduleClockOutReminder, cancelAllNotifications } from '../utils/notifications';
 
 const UserDashboard = () => {
     const { profile, signOut } = useAuth();
     const [todayEntries, setTodayEntries] = useState({ entrada: null, salida: null });
     const [loading, setLoading] = useState(false);
+    const [isBlocked, setIsBlocked] = useState(false);
 
     useEffect(() => {
+        setupNotifications();
         loadTodayEntries();
 
         // Suscribirse a cambios en time_entries para actualizar la UI en tiempo real
@@ -26,6 +29,10 @@ const UserDashboard = () => {
         };
     }, []);
 
+    const setupNotifications = async () => {
+        await registerForPushNotificationsAsync();
+    };
+
     const loadTodayEntries = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -36,35 +43,76 @@ const UserDashboard = () => {
                 .select('*')
                 .eq('user_id', user.id)
                 .order('timestamp', { ascending: false })
-                .limit(10); // Traemos los últimos para verificar hoy
+                .limit(5); // Suficiente para ver el último estado
 
             if (error) throw error;
 
-            // Buscar entradas de hoy
+            if (data.length > 0) {
+                const lastEntry = data[0];
+                const lastEntryDate = new Date(lastEntry.timestamp);
+
+                // Caso: El último registro es una ENTRADA pero NO es de hoy (Sesión olvidada)
+                if (lastEntry.entry_type === 'entrada' && !isToday(lastEntryDate)) {
+                    const diffMs = new Date() - lastEntryDate;
+                    const diffHours = diffMs / (1000 * 60 * 60);
+
+                    if (diffHours > 10) {
+                        setIsBlocked(true);
+                        Alert.alert(
+                            '⚠️ Jornada Excedida',
+                            `Tu última entrada fue el ${formatDate(lastEntryDate)} a las ${formatTime(lastEntryDate)}.\n\nHan pasado más de 10 horas. Por favor, habla con Administración para regularizar tu fichaje.`,
+                            [{ text: 'Entendido' }]
+                        );
+                    } else {
+                        Alert.alert(
+                            '📝 Fichaje Pendiente',
+                            `No fichaste la salida el día ${formatDate(lastEntryDate)}.\n\nPor favor, ficha la SALIDA ahora para poder iniciar tu jornada de hoy.`,
+                            [{ text: 'Fichar Salida Olvidada', onPress: () => handleFichaje('salida', lastEntry.id) }]
+                        );
+                    }
+                }
+            }
+
+            // Buscar la entrada de HOY (la más reciente)
             const entradaHoy = data.find(e => e.entry_type === 'entrada' && isToday(new Date(e.timestamp)));
-            const salidaHoy = data.find(e => e.entry_type === 'salida' && isToday(new Date(e.timestamp)));
+
+            // Buscar la salida de HOY (pero solo si ocurrió DESPUÉS de la entrada de hoy)
+            const salidaHoy = data.find(e =>
+                e.entry_type === 'salida' &&
+                isToday(new Date(e.timestamp)) &&
+                (!entradaHoy || new Date(e.timestamp) > new Date(entradaHoy.timestamp))
+            );
 
             setTodayEntries({
                 entrada: entradaHoy,
                 salida: salidaHoy
             });
+
+            // Sincronizar recordatorio: Si hay entrada hoy pero no salida (post-entrada), asegurar notificación
+            if (entradaHoy && !salidaHoy) {
+                scheduleClockOutReminder();
+            } else {
+                cancelAllNotifications();
+            }
+
         } catch (error) {
             console.error('Error cargando fichajes:', error);
         }
     };
 
     const handleFichaje = async (type) => {
-        // Validaciones
+        if (isBlocked) {
+            Alert.alert('Bloqueado', 'Debes contactar con administración.');
+            return;
+        }
+
+        // Validaciones para día actual (solo si no es una corrección forzada)
         if (type === 'entrada' && todayEntries.entrada) {
             Alert.alert('Aviso', 'Ya has fichado entrada hoy');
             return;
         }
 
-        if (type === 'salida' && !todayEntries.entrada) {
-            Alert.alert('Error', 'Debes fichar entrada antes de fichar salida');
-            return;
-        }
-
+        // Si intenta fichar salida normal pero ya tiene una hoy (después de la entrada)
         if (type === 'salida' && todayEntries.salida) {
             Alert.alert('Aviso', 'Ya has fichado salida hoy');
             return;
@@ -81,6 +129,12 @@ const UserDashboard = () => {
                 ]);
 
             if (error) throw error;
+
+            if (type === 'entrada') {
+                await scheduleClockOutReminder();
+            } else {
+                await cancelAllNotifications();
+            }
 
             Alert.alert('Éxito', `Fichaje de ${type} registrado correctamente`);
             loadTodayEntries();

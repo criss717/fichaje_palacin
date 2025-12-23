@@ -23,7 +23,10 @@
         "foregroundImage": "./assets/logoblanco.png",
         "backgroundColor": "#1E3A8A"
       },
-      "package": "com.palacin.fichaje"
+      "package": "com.palacin.fichaje",
+      "permissions": [
+        "NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/logoblanco.png"
