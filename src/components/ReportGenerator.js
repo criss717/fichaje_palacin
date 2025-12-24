@@ -9,15 +9,15 @@ const ReportGenerator = ({ users = [] }) => {
     const [loading, setLoading] = useState(false);
 
     // Estados de Filtros
-    const [selectedUser, setSelectedUser] = useState({ id: 'all', full_name: 'Todos los empleados' });
-    const [selectedMonth, setSelectedMonth] = useState({ id: 'all', name: 'Todos los meses' });
+    const [selectedUser, setSelectedUser] = useState({ id: 'all', full_name: 'Todos' });
+    const [selectedMonth, setSelectedMonth] = useState({ id: 'all', name: 'Todos' });
     const [selectedYear, setSelectedYear] = useState({ id: new Date().getFullYear().toString(), name: new Date().getFullYear().toString() });
 
     // Estados para Modales de Selección
     const [modalVisible, setModalVisible] = useState(null); // 'user', 'month', 'year'
 
     const months = [
-        { id: 'all', name: 'Todos los meses' },
+        { id: 'all', name: 'Todos' },
         { id: '0', name: 'Enero' }, { id: '1', name: 'Febrero' }, { id: '2', name: 'Marzo' },
         { id: '3', name: 'Abril' }, { id: '4', name: 'Mayo' }, { id: '5', name: 'Junio' },
         { id: '6', name: 'Julio' }, { id: '7', name: 'Agosto' }, { id: '8', name: 'Septiembre' },
@@ -26,7 +26,7 @@ const ReportGenerator = ({ users = [] }) => {
 
     const currentYear = new Date().getFullYear();
     const years = [
-        { id: 'all', name: 'Todos los años' },
+        { id: 'all', name: 'Todos' },
         { id: currentYear.toString(), name: currentYear.toString() },
         { id: (currentYear - 1).toString(), name: (currentYear - 1).toString() },
     ];
@@ -258,10 +258,12 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 4,
         elevation: 3,
+        width: 250,
     },
     buttonContainer: {
         alignItems: 'center',
         marginTop: 10,
+        width: '100%',
     },
     exportButtonText: {
         color: 'white',

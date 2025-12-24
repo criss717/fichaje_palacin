@@ -312,6 +312,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center', // Centrar botones verticalmente
         marginTop: 17,
+        alignItems: 'center',
     },
     actionButton: {
         paddingVertical: 24,
@@ -323,6 +324,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 5,
         elevation: 6,
+        width: '100%',
     },
     btnSuccess: { backgroundColor: '#10B981' },
     btnError: { backgroundColor: '#EF4444' },

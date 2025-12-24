@@ -31,26 +31,55 @@ export async function registerForPushNotificationsAsync() {
     return token;
 }
 
+let isSchedulingInProgress = false;
+
 export async function scheduleClockOutReminder() {
-    // Usamos un identificador fijo para que si se llama varias veces, 
-    // la nueva versión simplemente sobrescriba a la anterior en lugar de duplicarse.
     const NOTIFICATION_ID = 'clock-out-reminder';
 
-    await Notifications.scheduleNotificationAsync({
-        identifier: NOTIFICATION_ID,
-        content: {
-            title: "⏰ Recordatorio de Salida",
-            body: "Aún no has fichado tu salida hoy. No olvides registrarla antes de irte.",
-            data: { screen: 'UserDashboard' },
-        },
-        trigger: {
-            hour: 20,
-            minute: 0,
-            repeats: false,
-        },
-    });
+    // 1. Bloqueo de concurrencia: Evita que llamadas rápidas dupliquen la notificación
+    if (isSchedulingInProgress) return;
+    isSchedulingInProgress = true;
 
-    console.log('Notificación programada con éxito para las 20:00 (DNI: ' + NOTIFICATION_ID + ')');
+    try {
+        // 2. Comprobar si ya existe para no molestar al sistema operativo innecesariamente
+        const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+        if (scheduled.some(n => n.identifier === NOTIFICATION_ID)) {
+            console.log('Notificación ya existente. No se requiere nueva programación.');
+            isSchedulingInProgress = false;
+            return;
+        }
+
+        // 3. Definir la hora objetivo: 18:15 de HOY
+        const now = new Date();
+        const triggerDate = new Date();
+        triggerDate.setHours(18, 15, 0, 0);
+
+        // 4. Solo programamos si la hora aún no ha pasado
+        if (now < triggerDate) {
+            await Notifications.scheduleNotificationAsync({
+                identifier: NOTIFICATION_ID,
+                content: {
+                    title: "⏰ Recordatorio de Salida",
+                    body: "Aún no has fichado tu salida hoy. No olvides registrarla antes de irte.",
+                    data: { screen: 'UserDashboard' },
+                    android: {
+                        channelId: 'default',
+                    }
+                },
+                trigger: {
+                    type: 'date',
+                    date: triggerDate,
+                },
+            });
+            console.log('🚀 Recordatorio programado correctamente para las 18:15');
+        } else {
+            console.log('La hora de salida (18:15) ya pasó. No se programa para hoy.');
+        }
+    } catch (error) {
+        console.error('Error al programar recordatorio:', error);
+    } finally {
+        isSchedulingInProgress = false;
+    }
 }
 
 export async function cancelAllNotifications() {
