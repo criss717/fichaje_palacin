@@ -136,9 +136,7 @@ const UserDashboard = () => {
 
             if (error) throw error;
 
-            if (type === 'entrada') {
-                await scheduleClockOutReminder();
-            } else {
+            if (type === 'salida') {
                 await cancelAllNotifications();
             }
 
@@ -313,6 +311,7 @@ const styles = StyleSheet.create({
     actionsContainer: {
         flex: 1,
         justifyContent: 'center', // Centrar botones verticalmente
+        marginTop: 17,
     },
     actionButton: {
         paddingVertical: 24,

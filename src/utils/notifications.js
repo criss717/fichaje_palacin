@@ -32,31 +32,25 @@ export async function registerForPushNotificationsAsync() {
 }
 
 export async function scheduleClockOutReminder() {
-    // Primero cancelamos cualquier recordatorio previo para no duplicar
-    await cancelAllNotifications();
-
-    const trigger = new Date();
-    trigger.setHours(18);
-    trigger.setMinutes(15);
-    trigger.setSeconds(0);
-
-    // Si ya pasaron las 20:00 hoy, programamos para mañana
-    if (new Date() > trigger) {
-        trigger.setDate(trigger.getDate() + 1);
-    }
+    // Usamos un identificador fijo para que si se llama varias veces, 
+    // la nueva versión simplemente sobrescriba a la anterior en lugar de duplicarse.
+    const NOTIFICATION_ID = 'clock-out-reminder';
 
     await Notifications.scheduleNotificationAsync({
+        identifier: NOTIFICATION_ID,
         content: {
             title: "⏰ Recordatorio de Salida",
-            body: "Aún no has fichado tu salida hoy. Por favor, hazlo ahora.",
+            body: "Aún no has fichado tu salida hoy. No olvides registrarla antes de irte.",
             data: { screen: 'UserDashboard' },
         },
         trigger: {
-            date: trigger,
+            hour: 20,
+            minute: 0,
+            repeats: false,
         },
     });
 
-    console.log('Notificación programada para:', trigger.toLocaleString());
+    console.log('Notificación programada con éxito para las 20:00 (DNI: ' + NOTIFICATION_ID + ')');
 }
 
 export async function cancelAllNotifications() {
