@@ -6,6 +6,7 @@ import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
 import { formatDate, formatTime } from '../utils/helpers';
+import ReportGenerator from '../components/ReportGenerator';
 
 const AdminDashboard = () => {
     const { profile, signOut, createUser } = useAuth();
@@ -93,63 +94,7 @@ const AdminDashboard = () => {
         return { start: start.toISOString(), end: end.toISOString() };
     };
 
-    const handleExportCSV = async () => {
-        try {
-            setLoadingEntries(true);
-            const { start, end } = getFilterRange();
 
-            const { data, error } = await supabase
-                .from('time_entries')
-                .select(`
-                    id,
-                    entry_type,
-                    timestamp,
-                    profiles:user_id (full_name, email)
-                `)
-                .gte('timestamp', start)
-                .lte('timestamp', end)
-                .order('timestamp', { ascending: false });
-
-            if (error) throw error;
-
-            if (!data || data.length === 0) {
-                Alert.alert('📂 Sin Datos', 'No encontramos registros de fichajes para el mes seleccionado.');
-                setLoadingEntries(false);
-                return;
-            }
-
-            // CSV Header
-            let csvContent = 'ID,Empleado,Email,Tipo,Fecha,Hora\n';
-
-            // CSV Rows
-            data.forEach(entry => {
-                const date = new Date(entry.timestamp);
-                const dateStr = formatDate(date);
-                const timeStr = formatTime(date);
-
-                const name = entry.profiles?.full_name?.replace(/,/g, ' ') || 'Desconocido';
-                const email = entry.profiles?.email || 'Desconocido';
-
-                csvContent += `${entry.id},${name},${email},${entry.entry_type},${dateStr},${timeStr}\n`;
-            });
-
-            const fileName = `fichajes_${selectedMonth + 1}_${selectedYear}.csv`;
-            const fileUri = FileSystem.documentDirectory + fileName;
-            await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
-
-            if (await Sharing.isAvailableAsync()) {
-                await Sharing.shareAsync(fileUri);
-            } else {
-                Alert.alert('⚠️ Función No Disponible', 'Tu dispositivo no permite compartir archivos en este momento.');
-            }
-
-        } catch (error) {
-            console.error('Export Error:', error);
-            Alert.alert('❌ Exportación Fallida', 'Ocurrió un error al generar el archivo CSV.');
-        } finally {
-            setLoadingEntries(false);
-        }
-    };
 
     const loadTimeEntries = async () => {
         try {
@@ -241,11 +186,8 @@ const AdminDashboard = () => {
                     <View style={styles.rowBetween}>
                         <Text style={styles.cardHeader}>⏱️ Fichajes</Text>
                         <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity onPress={handleExportCSV} style={{ backgroundColor: '#10B981', padding: 6, borderRadius: 6, marginRight: 8 }}>
-                                <Text style={{ color: 'white', fontWeight: 'bold' }}>📄 CSV</Text>
-                            </TouchableOpacity>
                             <TouchableOpacity onPress={loadTimeEntries}>
-                                <Text style={styles.refreshText}>🔄</Text>
+                                <Text style={styles.refreshText}>🔄 Actualizar Lista</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -324,6 +266,9 @@ const AdminDashboard = () => {
                         </View>
                     )}
                 </View>
+
+                {/* Generador de Informes Avanzado */}
+                <ReportGenerator users={users} />
 
                 {/*Seccion lista de empleados*/}
                 <View style={[styles.card, { marginTop: 20, marginBottom: 20 }]}>
