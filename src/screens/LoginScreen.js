@@ -14,7 +14,7 @@ const LoginScreen = () => {
 
     const handleLogin = async () => {
         if (!email || !password) {
-            Alert.alert('Error', 'Por favor completa todos los campos');
+            Alert.alert('❌ Campos Vacíos', 'Por favor, introduce tu email y contraseña.');
             return;
         }
 
@@ -32,12 +32,12 @@ const LoginScreen = () => {
                 const errorMsg = result.error || 'Credenciales incorrectas';
                 const errorDetails = result.fullError ? `\n\nDetalles: ${JSON.stringify(result.fullError, null, 2)}` : '';
 
-                Alert.alert('Error de Inicio de Sesión', `${errorMsg}${errorDetails}`);
+                Alert.alert('🔐 Acceso Denegado', `Las credenciales no coinciden. Por favor, verifica tus datos e inténtalo de nuevo.${errorDetails}`);
             }
         } catch (e) {
             setLoading(false);
             console.error('LoginScreen: Error inesperado en handleLogin:', e);
-            Alert.alert('Error Crítico', e.message);
+            Alert.alert('⚠️ Problema de Conexión', `No pudimos conectar con el servidor: ${e.message}`);
         }
     };
 

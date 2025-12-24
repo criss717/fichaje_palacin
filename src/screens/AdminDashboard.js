@@ -39,25 +39,33 @@ const AdminDashboard = () => {
 
     const handleCreateUser = async () => {
         if (!email || !password || !fullName) {
-            Alert.alert('Error', 'Completa todos los campos');
+            Alert.alert('❌ Datos Incompletos', 'Por favor, rellena todos los campos para continuar.');
             return;
         }
+
+        // Validación de formato de email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+            Alert.alert('📧 Email Inválido', 'Asegúrate de que el correo tenga un formato correcto (ej: usuario@empresa.com).');
+            return;
+        }
+
         if (password.length < 6) {
-            Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
+            Alert.alert('🔑 Seguridad', 'La contraseña es muy corta. Usa al menos 6 caracteres.');
             return;
         }
 
         setLoading(true);
-        const result = await createUser(email, password, fullName);
+        const result = await createUser(email.trim(), password, fullName);
         setLoading(false);
 
         if (result.success) {
-            Alert.alert('Éxito', 'Usuario empleado creado correctamente');
+            Alert.alert('✨ ¡Usuario Creado!', 'El nuevo miembro del equipo ha sido registrado con éxito.');
             setEmail('');
             setPassword('');
             setFullName('');
         } else {
-            Alert.alert('Error', result.error);
+            Alert.alert('❌ Error de Registro', `No pudimos crear el usuario: ${result.error}`);
         }
     };
 
@@ -73,7 +81,7 @@ const AdminDashboard = () => {
             setUsers(data || []);
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'No se pudieron cargar los usuarios');
+            Alert.alert('🔎 Error de Red', 'No logramos obtener la lista de empleados. Inténtalo de nuevo.');
         } finally {
             setLoading(false);
         }
@@ -105,7 +113,7 @@ const AdminDashboard = () => {
             if (error) throw error;
 
             if (!data || data.length === 0) {
-                Alert.alert('Aviso', 'No hay datos para exportar en este periodo');
+                Alert.alert('📂 Sin Datos', 'No encontramos registros de fichajes para el mes seleccionado.');
                 setLoadingEntries(false);
                 return;
             }
@@ -132,12 +140,12 @@ const AdminDashboard = () => {
             if (await Sharing.isAvailableAsync()) {
                 await Sharing.shareAsync(fileUri);
             } else {
-                Alert.alert('Error', 'Compartir no está disponible');
+                Alert.alert('⚠️ Función No Disponible', 'Tu dispositivo no permite compartir archivos en este momento.');
             }
 
         } catch (error) {
             console.error('Export Error:', error);
-            Alert.alert('Error', 'Falló la exportación CSV');
+            Alert.alert('❌ Exportación Fallida', 'Ocurrió un error al generar el archivo CSV.');
         } finally {
             setLoadingEntries(false);
         }
@@ -162,7 +170,7 @@ const AdminDashboard = () => {
             setTimeEntries(data || []);
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'No se pudieron cargar los fichajes');
+            Alert.alert('🕒 Error al Cargar', 'No pudimos actualizar la lista de fichajes.');
         } finally {
             setLoadingEntries(false);
         }
@@ -318,7 +326,7 @@ const AdminDashboard = () => {
                 </View>
 
                 {/*Seccion lista de empleados*/}
-                <View style={[styles.card, { marginTop: 20 }]}>
+                <View style={[styles.card, { marginTop: 20, marginBottom: 20 }]}>
                     <Text style={styles.cardHeader}>👥 Lista de Empleados</Text>
                     {users ? (
                         <View>
@@ -330,7 +338,7 @@ const AdminDashboard = () => {
                             </View>
 
                             {/* Contenido con Scroll */}
-                            <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled={true}>
+                            <ScrollView style={{ maxHeight: 400 }} nestedScrollEnabled={true}>
                                 {users.map((user) => (
                                     <View key={user.id} style={styles.tr}>
                                         <View style={{ flex: 2 }}>

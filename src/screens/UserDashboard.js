@@ -61,13 +61,13 @@ const UserDashboard = () => {
 
                     if (diffHours > 10) {
                         Alert.alert(
-                            '⚠️ Jornada Excedida',
+                            '🚀 Jornada Prolongada',
                             `Tu última entrada fue el ${formatDate(lastEntryDate)} a las ${formatTime(lastEntryDate)}.\n\nHan pasado más de 10 horas. Se cerrará esta sesión a las 23:59 de ese día para que puedas fichar hoy, pero deberás avisar a Administración para regularizar las horas reales.`,
                             [{ text: 'Cerrar y Fichar Hoy', onPress: () => handleFichaje('salida', correctiveExitDate) }]
                         );
                     } else {
                         Alert.alert(
-                            '📝 Fichaje Pendiente',
+                            '� Fichaje Olvidado',
                             `No fichaste la salida el día ${formatDate(lastEntryDate)}.\n\nSe cerrará esa sesión a las 23:59 de ese día para que puedas iniciar tu jornada de hoy.`,
                             [{ text: 'Cerrar y Fichar Hoy', onPress: () => handleFichaje('salida', correctiveExitDate) }]
                         );
@@ -106,13 +106,13 @@ const UserDashboard = () => {
 
         // Validaciones para día actual (solo si no es una corrección forzada)
         if (type === 'entrada' && todayEntries.entrada) {
-            Alert.alert('Aviso', 'Ya has fichado entrada hoy');
+            Alert.alert('💡 Aviso', 'Ya registraste tu entrada por hoy.');
             return;
         }
 
         // Si intenta fichar salida normal pero ya tiene una hoy (después de la entrada)
         if (type === 'salida' && todayEntries.salida && !customTimestamp) {
-            Alert.alert('Aviso', 'Ya has fichado salida hoy');
+            Alert.alert('💡 Aviso', 'Ya registraste tu salida por hoy.');
             return;
         }
 
@@ -142,10 +142,10 @@ const UserDashboard = () => {
                 await cancelAllNotifications();
             }
 
-            Alert.alert('Éxito', `Fichaje de ${type} registrado correctamente`);
+            Alert.alert('✨ ¡Excelente!', `Tu ${type} ha sido registrada con éxito. ¡Que tengas un gran día!`);
             loadTodayEntries();
         } catch (error) {
-            Alert.alert('Error', error.message);
+            Alert.alert('❌ Ups...', `Hubo un inconveniente: ${error.message}`);
         } finally {
             setLoading(false);
         }
