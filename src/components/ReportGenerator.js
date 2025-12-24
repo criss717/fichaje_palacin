@@ -82,17 +82,16 @@ const ReportGenerator = ({ users = [] }) => {
 
             // Generar CSV mejorado con BOM y separador ;
             const BOM = '\uFEFF';
-            let csvContent = BOM + '"ID";"Empleado";"Email";"Tipo";"Fecha";"Hora"\n';
+            let csvContent = BOM + '"Empleado";"Tipo";"Fecha";"Hora"\n';
 
             data.forEach(entry => {
                 const date = new Date(entry.timestamp);
                 const dateStr = formatDate(date);
                 const timeStr = formatTime(date);
                 const name = entry.profiles?.full_name || 'Desconocido';
-                const email = entry.profiles?.email || 'Desconocido';
                 const type = entry.entry_type === 'entrada' ? 'ENTRADA' : 'SALIDA';
 
-                csvContent += `"${entry.id}";"${name}";"${email}";"${type}";"${dateStr}";"${timeStr}"\n`;
+                csvContent += `"${name}";"${type}";"${dateStr}";"${timeStr}"\n`;
             });
 
             const fileName = `Informe_${selectedUser.full_name.replace(/\s/g, '_')}_${selectedMonth.name}_${selectedYear.name}.csv`;
@@ -140,17 +139,19 @@ const ReportGenerator = ({ users = [] }) => {
                 </View>
             </View>
 
-            <TouchableOpacity
-                style={[styles.exportButton, loading && styles.disabled]}
-                onPress={handleExport}
-                disabled={loading}
-            >
-                {loading ? (
-                    <ActivityIndicator color="white" />
-                ) : (
-                    <Text style={styles.exportButtonText}>DESCARGAR INFORME CSV</Text>
-                )}
-            </TouchableOpacity>
+            <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                    style={[styles.exportButton, loading && styles.disabled]}
+                    onPress={handleExport}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text style={styles.exportButtonText}>📥 Descargar Excel (CSV) 📃</Text>
+                    )}
+                </TouchableOpacity>
+            </View>
 
             {/* Modal de Selección */}
             <Modal
@@ -245,20 +246,26 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     exportButton: {
-        backgroundColor: '#10B981',
+        backgroundColor: '#1E3A8A', // Azul corporativo
         borderRadius: 12,
-        paddingVertical: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 20,
         alignItems: 'center',
-        marginTop: 10,
-        shadowColor: '#10B981',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        shadowColor: '#1E3A8A',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
         elevation: 3,
     },
+    buttonContainer: {
+        alignItems: 'center',
+        marginTop: 10,
+    },
     exportButtonText: {
         color: 'white',
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: 'bold',
     },
     disabled: {
