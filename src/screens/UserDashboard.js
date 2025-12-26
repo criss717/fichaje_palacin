@@ -1,21 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, Image, Alert, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
 import { formatDate, formatTime, isToday } from '../utils/helpers';
 import { registerForPushNotificationsAsync, scheduleClockOutReminder, cancelAllNotifications } from '../utils/notifications';
+import CustomAlert from '../components/CustomAlert';
 
 const UserDashboard = () => {
     const { profile, signOut } = useAuth();
     const [todayEntries, setTodayEntries] = useState({ entrada: null, salida: null });
     const [loading, setLoading] = useState(false);
 
+    // Estado para Alerta Personalizada
+    const [alertConfig, setAlertConfig] = useState({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info',
+        onConfirm: null,
+        confirmText: 'Confirmar'
+    });
+
+    const showAlert = (title, message, type = 'info', onConfirm = null, confirmText = 'Confirmar', options = {}) => {
+        setAlertConfig({
+            visible: true,
+            title,
+            message,
+            type,
+            onConfirm,
+            confirmText,
+            ...options
+        });
+    };
+
     useEffect(() => {
         setupNotifications();
         loadTodayEntries();
 
-        // Suscribirse a cambios en time_entries para actualizar la UI en tiempo real
         const channel = supabase
             .channel('public:time_entries')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries' }, () => {
@@ -42,7 +65,7 @@ const UserDashboard = () => {
                 .select('*')
                 .eq('user_id', user.id)
                 .order('timestamp', { ascending: false })
-                .limit(5); // Suficiente para ver el último estado
+                .limit(5);
 
             if (error) throw error;
 
@@ -50,35 +73,36 @@ const UserDashboard = () => {
                 const lastEntry = data[0];
                 const lastEntryDate = new Date(lastEntry.timestamp);
 
-                // Caso: El último registro es una ENTRADA pero NO es de hoy (Sesión olvidada)
                 if (lastEntry.entry_type === 'entrada' && !isToday(lastEntryDate)) {
-                    const diffMs = new Date() - lastEntryDate;
-                    const diffHours = diffMs / (1000 * 60 * 60);
-
-                    // Preparar la fecha de salida a las 23:59:59 del día de la entrada
                     const correctiveExitDate = new Date(lastEntryDate);
                     correctiveExitDate.setHours(23, 59, 59, 999);
 
+                    const diffMs = new Date() - lastEntryDate;
+                    const diffHours = diffMs / (1000 * 60 * 60);
+
                     if (diffHours > 10) {
-                        Alert.alert(
+                        showAlert(
                             '🚀 Jornada Prolongada',
-                            `Tu última entrada fue el ${formatDate(lastEntryDate)} a las ${formatTime(lastEntryDate)}.\n\nHan pasado más de 10 horas. Se cerrará esta sesión a las 23:59 de ese día para que puedas fichar hoy, pero deberás avisar a Administración para regularizar las horas reales.`,
-                            [{ text: 'Cerrar y Fichar Hoy', onPress: () => handleFichaje('salida', correctiveExitDate) }]
+                            `Tu última entrada fue el ${formatDate(lastEntryDate)} a las ${formatTime(lastEntryDate)}.\n\nHan pasado más de 10 horas. Se cerrará esta sesión a las 23:59 de ese día para que puedas fichar hoy, pero deberías hablar con administración para validar las horas correctas. `,
+                            'warning',
+                            () => handleFichaje('salida', correctiveExitDate),
+                            'Entiendo',
+                            { showCancelButton: false, cancelable: false }
                         );
                     } else {
-                        Alert.alert(
-                            '� Fichaje Olvidado',
+                        showAlert(
+                            '📍 Fichaje Olvidado',
                             `No fichaste la salida el día ${formatDate(lastEntryDate)}.\n\nSe cerrará esa sesión a las 23:59 de ese día para que puedas iniciar tu jornada de hoy.`,
-                            [{ text: 'Cerrar y Fichar Hoy', onPress: () => handleFichaje('salida', correctiveExitDate) }]
+                            'warning',
+                            () => handleFichaje('salida', correctiveExitDate),
+                            'Entiendo',
+                            { showCancelButton: false, cancelable: false }
                         );
                     }
                 }
             }
 
-            // Buscar la entrada de HOY (la más reciente)
             const entradaHoy = data.find(e => e.entry_type === 'entrada' && isToday(new Date(e.timestamp)));
-
-            // Buscar la salida de HOY (pero solo si ocurrió DESPUÉS de la entrada de hoy)
             const salidaHoy = data.find(e =>
                 e.entry_type === 'salida' &&
                 isToday(new Date(e.timestamp)) &&
@@ -90,7 +114,6 @@ const UserDashboard = () => {
                 salida: salidaHoy
             });
 
-            // Sincronizar recordatorio: Si hay entrada hoy pero no salida (post-entrada), asegurar notificación
             if (entradaHoy && !salidaHoy) {
                 scheduleClockOutReminder();
             } else {
@@ -103,47 +126,34 @@ const UserDashboard = () => {
     };
 
     const handleFichaje = async (type, customTimestamp = null) => {
-
-        // Validaciones para día actual (solo si no es una corrección forzada)
         if (type === 'entrada' && todayEntries.entrada) {
-            Alert.alert('💡 Aviso', 'Ya registraste tu entrada por hoy.');
+            showAlert('💡 Aviso', 'Ya registraste tu entrada por hoy.', 'info');
             return;
         }
 
-        // Si intenta fichar salida normal pero ya tiene una hoy (después de la entrada)
         if (type === 'salida' && todayEntries.salida && !customTimestamp) {
-            Alert.alert('💡 Aviso', 'Ya registraste tu salida por hoy.');
+            showAlert('💡 Aviso', 'Ya registraste tu salida por hoy.', 'info');
             return;
         }
 
         try {
             setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
+            const entryData = { user_id: user.id, entry_type: type };
 
-            const entryData = {
-                user_id: user.id,
-                entry_type: type
-            };
-
-            // Si es una corrección, usamos el timestamp preventivo (23:59 del día anterior)
             if (customTimestamp) {
                 entryData.timestamp = customTimestamp.toISOString();
             }
 
-            const { error } = await supabase
-                .from('time_entries')
-                .insert([entryData]);
-
+            const { error } = await supabase.from('time_entries').insert([entryData]);
             if (error) throw error;
 
-            if (type === 'salida') {
-                await cancelAllNotifications();
-            }
+            if (type === 'salida') await cancelAllNotifications();
 
-            Alert.alert('✨ ¡Excelente!', `Tu ${type} ha sido registrada con éxito. ¡Que tengas un gran día!`);
+            showAlert('✨ ¡Excelente!', `Tu ${type} ha sido registrada con éxito. ¡Que tengas un gran día!`, 'success');
             loadTodayEntries();
         } catch (error) {
-            Alert.alert('❌ Ups...', `Hubo un inconveniente: ${error.message}`);
+            showAlert('❌ Ups...', `Hubo un inconveniente: ${error.message}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -151,25 +161,35 @@ const UserDashboard = () => {
 
     return (
         <BackgroundBlur intensity={70}>
-            <View style={styles.container}>
-                {/* Cabecera */}
-                <View style={styles.header}>
-                    <Image
-                        source={require('../../assets/logoblanco.png')}
-                        style={styles.logo}
-                        resizeMode="contain"
-                    />
-                    <View style={styles.userInfo}>
-                        <Text style={styles.welcomeText}>¡Hola,</Text>
-                        <Text style={styles.userName}>{profile?.full_name || 'Usuario'}!</Text>
-                        <Text style={styles.dateText}>{formatDate(new Date())}</Text>
+            <View style={styles.headerWrapper}>
+                <View style={styles.headerContainer}>
+                    <View style={styles.headerContent}>
+                        <Image
+                            source={require('../../assets/logoblanco.png')}
+                            style={styles.logo}
+                            resizeMode="contain"
+                        />
+                        <View style={styles.userInfo}>
+                            <Text style={styles.welcomeText}>¡Hola,</Text>
+                            <Text style={styles.userName}>{profile?.full_name || 'Usuario'}!</Text>
+                            <Text style={styles.dateText}>{formatDate(new Date())}</Text>
+                        </View>
+                        <TouchableOpacity onPress={signOut} style={styles.logoutButton}>
+                            <Text style={styles.logoutText}>Salir</Text>
+                        </TouchableOpacity>
                     </View>
+                    <LinearGradient
+                        colors={['rgba(0, 0, 0, 0.5)', 'transparent']}
+                        style={{ position: 'absolute', left: 0, right: 0, bottom: -10, height: 10 }}
+                    />
                 </View>
+            </View>
 
+            <View style={styles.container}>
                 {/* Estado del día */}
+
                 <View style={styles.statusCard}>
                     <Text style={styles.cardTitle}>Tu Jornada de Hoy</Text>
-
                     <View style={styles.row}>
                         <View style={styles.statusItem}>
                             <Text style={styles.statusLabel}>Entrada</Text>
@@ -177,9 +197,7 @@ const UserDashboard = () => {
                                 {todayEntries.entrada ? formatTime(new Date(todayEntries.entrada.timestamp)) : '--:--'}
                             </Text>
                         </View>
-
                         <View style={styles.divider} />
-
                         <View style={styles.statusItem}>
                             <Text style={styles.statusLabel}>Salida</Text>
                             <Text style={[styles.statusTime, todayEntries.salida ? styles.textError : styles.textGray]}>
@@ -189,16 +207,11 @@ const UserDashboard = () => {
                     </View>
                 </View>
 
-                {/* Botones de Acción */}
                 <View style={styles.actionsContainer}>
                     <TouchableOpacity
                         onPress={() => handleFichaje('entrada')}
                         disabled={!!todayEntries.entrada || loading}
-                        style={[
-                            styles.actionButton,
-                            styles.btnSuccess,
-                            (todayEntries.entrada || loading) && styles.btnDisabled
-                        ]}
+                        style={[styles.actionButton, styles.btnSuccess, (todayEntries.entrada || loading) && styles.btnDisabled]}
                     >
                         <Text style={styles.actionButtonTitle}>FICHAR ENTRADA</Text>
                         <Text style={styles.actionButtonSub}>Registrar inicio de jornada</Text>
@@ -207,23 +220,18 @@ const UserDashboard = () => {
                     <TouchableOpacity
                         onPress={() => handleFichaje('salida')}
                         disabled={!todayEntries.entrada || !!todayEntries.salida || loading}
-                        style={[
-                            styles.actionButton,
-                            styles.btnError,
-                            (!todayEntries.entrada || todayEntries.salida || loading) && styles.btnDisabled
-                        ]}
+                        style={[styles.actionButton, styles.btnError, (!todayEntries.entrada || todayEntries.salida || loading) && styles.btnDisabled]}
                     >
                         <Text style={styles.actionButtonTitle}>FICHAR SALIDA</Text>
                         <Text style={styles.actionButtonSub}>Registrar fin de jornada</Text>
                     </TouchableOpacity>
                 </View>
-
-                {/* Logout */}
-                <TouchableOpacity onPress={signOut} style={styles.logoutButton}>
-                    <Text style={styles.logoutText}>Cerrar Sesión</Text>
-                </TouchableOpacity>
-
             </View>
+
+            <CustomAlert
+                {...alertConfig}
+                onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+            />
         </BackgroundBlur>
     );
 };
@@ -231,36 +239,55 @@ const UserDashboard = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingTop: 60,
-        paddingHorizontal: 24,
+        paddingTop: 170,
+        paddingHorizontal: 24
     },
-    header: {
+    headerWrapper: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        alignItems: 'center', // Centra el headerContainer en Web
+    },
+    headerContainer: {
+        width: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        paddingTop: 60,
+        paddingBottom: 10,
+    },
+    headerContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 32,
+        paddingHorizontal: 24,
+        width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
     },
     logo: {
         width: 60,
         height: 60,
         borderRadius: 12,
-        marginRight: 16,
+        marginRight: 16
     },
     userInfo: {
-        flex: 1,
+        flex: 1
     },
     welcomeText: {
         color: 'rgba(255,255,255,0.8)',
         fontSize: 16,
+        fontFamily: 'Comic Sans MS'
     },
     userName: {
         color: 'white',
         fontSize: 22,
-        fontWeight: 'bold',
+        fontFamily: 'Comic Sans MS-Bold'
     },
     dateText: {
         color: 'rgba(255,255,255,0.6)',
         fontSize: 14,
         marginTop: 4,
+        fontFamily: 'Comic Sans MS'
     },
     statusCard: {
         backgroundColor: 'rgba(255,255,255,0.9)',
@@ -272,47 +299,56 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+        maxWidth: 450,
+        width: '100%',
+        alignSelf: 'center',
     },
     cardTitle: {
         fontSize: 18,
-        fontWeight: '600',
         color: '#374151',
         marginBottom: 16,
         textAlign: 'center',
+        fontFamily: 'Comic Sans MS-Bold'
     },
     row: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'center'
     },
     statusItem: {
         flex: 1,
-        alignItems: 'center',
+        alignItems: 'center'
     },
     divider: {
         width: 1,
         height: 40,
         backgroundColor: '#E5E7EB',
-        marginHorizontal: 16,
+        marginHorizontal: 16
     },
     statusLabel: {
         fontSize: 14,
         color: '#6B7280',
         marginBottom: 4,
+        fontFamily: 'Comic Sans MS'
     },
     statusTime: {
         fontSize: 24,
-        fontWeight: 'bold',
+        fontFamily: 'Comic Sans MS-Bold'
     },
-    textSuccess: { color: '#10B981' }, // Verde
-    textError: { color: '#EF4444' },   // Rojo
-    textGray: { color: '#9CA3AF' },
-
+    textSuccess: {
+        color: '#10B981'
+    },
+    textError: {
+        color: '#EF4444'
+    },
+    textGray: {
+        color: '#9CA3AF'
+    },
     actionsContainer: {
         flex: 1,
-        justifyContent: 'center', // Centrar botones verticalmente
-        marginTop: 17,
-        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: -70,
+        alignItems: 'center'
     },
     actionButton: {
         paddingVertical: 24,
@@ -325,30 +361,42 @@ const styles = StyleSheet.create({
         shadowRadius: 5,
         elevation: 6,
         width: '100%',
+        maxWidth: 450,
+        alignSelf: 'center',
     },
-    btnSuccess: { backgroundColor: '#10B981' },
-    btnError: { backgroundColor: '#EF4444' },
-    btnDisabled: { backgroundColor: '#9CA3AF', opacity: 0.6 },
-
+    btnSuccess: {
+        backgroundColor: '#10B981'
+    },
+    btnError: {
+        backgroundColor: '#EF4444'
+    },
+    btnDisabled: {
+        backgroundColor: '#9CA3AF',
+        opacity: 0.6
+    },
     actionButtonTitle: {
         color: 'white',
         fontSize: 20,
-        fontWeight: 'bold',
         marginBottom: 4,
+        fontFamily: 'Comic Sans MS-Bold'
     },
     actionButtonSub: {
         color: 'rgba(255,255,255,0.9)',
         fontSize: 14,
+        fontFamily: 'Comic Sans MS'
     },
     logoutButton: {
-        padding: 16,
         alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 16,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
         marginBottom: 32,
     },
     logoutText: {
         color: 'rgba(255,255,255,0.7)',
         fontSize: 16,
-        fontWeight: '500',
+        fontFamily: 'Comic Sans MS'
     },
 });
 

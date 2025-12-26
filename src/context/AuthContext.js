@@ -105,11 +105,20 @@ export const AuthProvider = ({ children }) => {
     const signOut = async () => {
         try {
             const { error } = await supabase.auth.signOut();
-            if (error) throw error;
-            setUser(null);
-            setProfile(null);
+            if (error) {
+                // Si el error es "Auth session missing", lo ignoramos porque el objetivo es salir
+                if (error.message.includes('Auth session missing')) {
+                    console.warn('Sesión ya cerrada o perdida, limpiando estado local...');
+                } else {
+                    throw error;
+                }
+            }
         } catch (error) {
             console.error('Error cerrando sesión:', error.message);
+        } finally {
+            // Siempre limpiar el estado local para asegurar que la UI responda
+            setUser(null);
+            setProfile(null);
         }
     };
 

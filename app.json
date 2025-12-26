@@ -3,7 +3,7 @@
     "name": "App Fichaje Palacín",
     "slug": "app-fichaje-palacin",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/logoblanco.png",
     "userInterfaceStyle": "light",
     "splash": {
@@ -29,7 +29,15 @@
       ]
     },
     "web": {
-      "favicon": "./assets/logoblanco.png"
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/logoblanco.png",
+      "themeColor": "#1E3A8A",
+      "backgroundColor": "#1E3A8A",
+      "display": "standalone",
+      "orientation": "default",
+      "description": "Aplicación de fichaje para empleados de Palacín.",
+      "name": "Fichaje Palacín"
     },
     "plugins": [
       "expo-build-properties",

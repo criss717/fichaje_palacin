@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, Alert, ActivityIndicator, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator, StyleSheet, Dimensions } from 'react-native';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../config/supabase';
+import CustomAlert from '../components/CustomAlert';
 
 const { width } = Dimensions.get('window');
 
@@ -12,9 +12,21 @@ const LoginScreen = () => {
     const [loading, setLoading] = useState(false);
     const { signIn } = useAuth();
 
+    // Estado para Alerta Personalizada
+    const [alertConfig, setAlertConfig] = useState({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
+    const showAlert = (title, message, type = 'info') => {
+        setAlertConfig({ visible: true, title, message, type });
+    };
+
     const handleLogin = async () => {
         if (!email || !password) {
-            Alert.alert('❌ Campos Vacíos', 'Por favor, introduce tu email y contraseña.');
+            showAlert('❌ Campos Vacíos', 'Por favor, introduce tu email y contraseña.', 'warning');
             return;
         }
 
@@ -28,16 +40,12 @@ const LoginScreen = () => {
             setLoading(false);
 
             if (!result.success) {
-                // Mostrar alerta con más detalles técnicos si están disponibles
-                const errorMsg = result.error || 'Credenciales incorrectas';
-                const errorDetails = result.fullError ? `\n\nDetalles: ${JSON.stringify(result.fullError, null, 2)}` : '';
-
-                Alert.alert('🔐 Acceso Denegado', `Las credenciales no coinciden. Por favor, verifica tus datos e inténtalo de nuevo.${errorDetails}`);
+                showAlert('🔐 Acceso Denegado', `Las credenciales no coinciden. Por favor, verifica tus datos e inténtalo de nuevo.`, 'error');
             }
         } catch (e) {
             setLoading(false);
             console.error('LoginScreen: Error inesperado en handleLogin:', e);
-            Alert.alert('⚠️ Problema de Conexión', `No pudimos conectar con el servidor: ${e.message}`);
+            showAlert('⚠️ Problema de Conexión', `No pudimos conectar con el servidor: ${e.message}`, 'error');
         }
     };
 
@@ -51,7 +59,6 @@ const LoginScreen = () => {
                         source={require('../../assets/logoblanco.png')}
                         style={styles.logo}
                         resizeMode="contain"
-                        color="white"
                     />
                 </View>
 
@@ -95,6 +102,11 @@ const LoginScreen = () => {
                     </TouchableOpacity>
                 </View>
             </View>
+
+            <CustomAlert
+                {...alertConfig}
+                onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+            />
         </BackgroundBlur>
     );
 };
@@ -108,7 +120,6 @@ const styles = StyleSheet.create({
     },
     logoContainer: {
         padding: 16,
-        color: 'white',
     },
     logo: {
         width: 100,
@@ -116,16 +127,17 @@ const styles = StyleSheet.create({
     },
     appTitle: {
         fontSize: 32,
-        fontWeight: 'bold',
         color: 'white',
         marginBottom: 8,
         textAlign: 'center',
+        fontFamily: 'Comic Sans MS-Bold'
     },
     appSubtitle: {
         fontSize: 18,
         color: 'rgba(255, 255, 255, 0.8)',
         marginBottom: 32,
         textAlign: 'center',
+        fontFamily: 'Comic Sans MS'
     },
     formContainer: {
         width: '100%',
@@ -133,7 +145,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
         padding: 24,
         borderRadius: 20,
-        // Efecto borde sutil
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.2)',
     },
@@ -145,9 +156,10 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         fontSize: 16,
         color: '#1F2937',
+        fontFamily: 'Comic Sans MS'
     },
     button: {
-        backgroundColor: '#1E3A8A', // Azul corporativo
+        backgroundColor: '#1E3A8A',
         borderRadius: 12,
         paddingVertical: 16,
         alignItems: 'center',
@@ -164,9 +176,8 @@ const styles = StyleSheet.create({
     buttonText: {
         color: 'white',
         fontSize: 18,
-        fontWeight: 'bold',
+        fontFamily: 'Comic Sans MS-Bold'
     },
 });
-
 
 export default LoginScreen;

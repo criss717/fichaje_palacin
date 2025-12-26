@@ -3,6 +3,8 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
 export async function registerForPushNotificationsAsync() {
+    if (Platform.OS === 'web') return; // En web no registramos notificaciones nativas por ahora
+
     let token;
     if (Device.isDevice) {
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -34,6 +36,7 @@ export async function registerForPushNotificationsAsync() {
 let isSchedulingInProgress = false;
 
 export async function scheduleClockOutReminder() {
+    if (Platform.OS === 'web') return; // En web no programamos recordatorios por ahora
     const NOTIFICATION_ID = 'clock-out-reminder';
 
     // 1. Bloqueo de concurrencia: Evita que llamadas rápidas dupliquen la notificación
@@ -83,6 +86,7 @@ export async function scheduleClockOutReminder() {
 }
 
 export async function cancelAllNotifications() {
+    if (Platform.OS === 'web') return;
     await Notifications.cancelAllScheduledNotificationsAsync();
     console.log('Todas las notificaciones programadas han sido canceladas.');
 }
