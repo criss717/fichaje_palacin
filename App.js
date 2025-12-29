@@ -1,6 +1,6 @@
+import 'react-native-gesture-handler';
 import 'react-native-url-polyfill/auto';
 import './global.css';
-import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useFonts } from 'expo-font';
 import { ComicNeue_400Regular, ComicNeue_700Bold } from '@expo-google-fonts/comic-neue';
