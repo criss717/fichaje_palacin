@@ -168,7 +168,7 @@ const AdminDashboard = () => {
 
                     {/* Tarjeta 1: Crear Empleado */}
                     <View style={cardStyle}>
-                        <Text style={styles.cardHeader}>🤵 Crear Nuevo Empleado</Text>
+                        <Text style={styles.cardHeader}>👤 Crear Nuevo Empleado</Text>
                         <TextInput style={styles.input} placeholder="Nombre Completo" placeholderTextColor="#9CA3AF" value={fullName} onChangeText={setFullName} />
                         <TextInput style={styles.input} placeholder="Email Corporativo" placeholderTextColor="#9CA3AF" value={email} onChangeText={setEmail} autoCapitalize="none" />
                         <TextInput style={styles.input} placeholder="Contraseña (mín 6 caracteres)" placeholderTextColor="#9CA3AF" value={password} onChangeText={setPassword} secureTextEntry />
