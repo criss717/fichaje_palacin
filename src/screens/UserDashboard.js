@@ -10,7 +10,8 @@ import CustomAlert from '../components/CustomAlert';
 
 const UserDashboard = () => {
     const { profile, signOut } = useAuth();
-    const [todayEntries, setTodayEntries] = useState({ entrada: null, salida: null });
+    const [todayTurns, setTodayTurns] = useState([]);
+    const [lastEntry, setLastEntry] = useState(null);
     const [loading, setLoading] = useState(false);
 
     // Estado para Alerta Personalizada
@@ -60,61 +61,61 @@ const UserDashboard = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
+            // Obtenemos fichajes de hoy para el dashboard
             const { data, error } = await supabase
                 .from('time_entries')
                 .select('*')
                 .eq('user_id', user.id)
-                .order('timestamp', { ascending: false })
-                .limit(5);
+                .order('timestamp', { ascending: true }); // Ascendente para agrupar por turnos
 
             if (error) throw error;
 
-            if (data.length > 0) {
-                const lastEntry = data[0];
-                const lastEntryDate = new Date(lastEntry.timestamp);
+            // Procesar turnos del día
+            const turns = [];
+            let currentTurn = null;
+            let lastFoundEntry = null;
 
-                if (lastEntry.entry_type === 'entrada' && !isToday(lastEntryDate)) {
-                    const correctiveExitDate = new Date(lastEntryDate);
-                    correctiveExitDate.setHours(23, 59, 59, 999);
+            data.forEach(entry => {
+                const entryDate = new Date(entry.timestamp);
 
-                    const diffMs = new Date() - lastEntryDate;
-                    const diffHours = diffMs / (1000 * 60 * 60);
-
-                    if (diffHours > 10) {
-                        showAlert(
-                            '🚀 Jornada Prolongada',
-                            `Tu última entrada fue el ${formatDate(lastEntryDate)} a las ${formatTime(lastEntryDate)}.\n\nHan pasado más de 10 horas. Se cerrará esta sesión a las 23:59 de ese día para que puedas fichar hoy, pero deberías hablar con administración para validar las horas correctas. `,
-                            'warning',
-                            () => handleFichaje('salida', correctiveExitDate),
-                            'Entiendo',
-                            { showCancelButton: false, cancelable: false }
-                        );
-                    } else {
-                        showAlert(
-                            '📍 Fichaje Olvidado',
-                            `No fichaste la salida el día ${formatDate(lastEntryDate)}.\n\nSe cerrará esa sesión a las 23:59 de ese día para que puedas iniciar tu jornada de hoy.`,
-                            'warning',
-                            () => handleFichaje('salida', correctiveExitDate),
-                            'Entiendo',
-                            { showCancelButton: false, cancelable: false }
-                        );
+                if (isToday(entryDate)) {
+                    if (entry.entry_type === 'entrada') {
+                        if (currentTurn) turns.push(currentTurn); // Si ya había uno abierto (error?), lo cerramos como incompleto
+                        currentTurn = { entrada: entry, salida: null };
+                    } else if (entry.entry_type === 'salida') {
+                        if (currentTurn) {
+                            currentTurn.salida = entry;
+                            turns.push(currentTurn);
+                            currentTurn = null;
+                        }
                     }
                 }
-            }
-
-            const entradaHoy = data.find(e => e.entry_type === 'entrada' && isToday(new Date(e.timestamp)));
-            const salidaHoy = data.find(e =>
-                e.entry_type === 'salida' &&
-                isToday(new Date(e.timestamp)) &&
-                (!entradaHoy || new Date(e.timestamp) > new Date(entradaHoy.timestamp))
-            );
-
-            setTodayEntries({
-                entrada: entradaHoy,
-                salida: salidaHoy
+                lastFoundEntry = entry;
             });
 
-            if (entradaHoy && !salidaHoy) {
+            if (currentTurn) turns.push(currentTurn);
+
+            setTodayTurns(turns);
+            setLastEntry(lastFoundEntry);
+
+            // Verificación de fichaje olvidado del día anterior (Lógica existente)
+            if (lastFoundEntry && lastFoundEntry.entry_type === 'entrada' && !isToday(new Date(lastFoundEntry.timestamp))) {
+                const lastEntryDate = new Date(lastFoundEntry.timestamp);
+                const correctiveExitDate = new Date(lastEntryDate);
+                correctiveExitDate.setHours(23, 59, 59, 999);
+
+                showAlert(
+                    '📍 Fichaje Olvidado',
+                    `No fichaste la salida el día ${formatDate(lastEntryDate)}.\n\nSe cerrará esa sesión automáticamente para que puedas iniciar hoy.`,
+                    'warning',
+                    () => handleFichaje('salida', correctiveExitDate),
+                    'Entiendo',
+                    { showCancelButton: false, cancelable: false }
+                );
+            }
+
+            // Notificaciones de recordatorio si hay un turno abierto hoy
+            if (currentTurn && !currentTurn.salida) {
                 scheduleClockOutReminder();
             } else {
                 cancelAllNotifications();
@@ -126,13 +127,16 @@ const UserDashboard = () => {
     };
 
     const handleFichaje = async (type, customTimestamp = null) => {
-        if (type === 'entrada' && todayEntries.entrada) {
-            showAlert('💡 Aviso', 'Ya registraste tu entrada por hoy.', 'info');
+        // Validaciones para turnos partidos
+        const currentlyIn = todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida;
+
+        if (type === 'entrada' && currentlyIn) {
+            showAlert('💡 Aviso', 'Ya estás dentro de un turno. Debes fichar salida primero.', 'info');
             return;
         }
 
-        if (type === 'salida' && todayEntries.salida && !customTimestamp) {
-            showAlert('💡 Aviso', 'Ya registraste tu salida por hoy.', 'info');
+        if (type === 'salida' && !currentlyIn && !customTimestamp) {
+            showAlert('💡 Aviso', 'No tienes ninguna entrada activa para cerrar.', 'info');
             return;
         }
 
@@ -150,7 +154,7 @@ const UserDashboard = () => {
 
             if (type === 'salida') await cancelAllNotifications();
 
-            showAlert('✨ ¡Excelente!', `Tu ${type} ha sido registrada con éxito. ¡Que tengas un gran día!`, 'success');
+            showAlert('✨ ¡Excelente!', `Tu ${type} ha sido registrada con éxito.`, 'success');
             loadTodayEntries();
         } catch (error) {
             showAlert('❌ Ups...', `Hubo un inconveniente: ${error.message}`, 'error');
@@ -186,46 +190,66 @@ const UserDashboard = () => {
             </View>
 
             <View style={styles.container}>
-                {/* Estado del día */}
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 40 }}
+                >
+                    <View style={styles.statusCard}>
+                        <Text style={styles.cardTitle}>Tus Turnos de Hoy</Text>
 
-                <View style={styles.statusCard}>
-                    <Text style={styles.cardTitle}>Tu Jornada de Hoy</Text>
-                    <View style={styles.row}>
-                        <View style={styles.statusItem}>
-                            <Text style={styles.statusLabel}>Entrada</Text>
-                            <Text style={[styles.statusTime, todayEntries.entrada ? styles.textSuccess : styles.textGray]}>
-                                {todayEntries.entrada ? formatTime(new Date(todayEntries.entrada.timestamp)) : '--:--'}
+                        {todayTurns.length === 0 ? (
+                            <Text style={[styles.statusLabel, { textAlign: 'center', marginTop: 10 }]}>
+                                No hay registros para hoy
                             </Text>
-                        </View>
-                        <View style={styles.divider} />
-                        <View style={styles.statusItem}>
-                            <Text style={styles.statusLabel}>Salida</Text>
-                            <Text style={[styles.statusTime, todayEntries.salida ? styles.textError : styles.textGray]}>
-                                {todayEntries.salida ? formatTime(new Date(todayEntries.salida.timestamp)) : '--:--'}
-                            </Text>
-                        </View>
+                        ) : (
+                            todayTurns.map((turn, index) => (
+                                <View key={index} style={[styles.turnRow, index > 0 && styles.turnBorder]}>
+                                    <View style={styles.statusItem}>
+                                        <Text style={styles.statusLabel}>Entrada {todayTurns.length > 1 ? `#${index + 1}` : ''}</Text>
+                                        <Text style={[styles.statusTime, styles.textSuccess]}>
+                                            {formatTime(new Date(turn.entrada.timestamp))}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.divider} />
+                                    <View style={styles.statusItem}>
+                                        <Text style={styles.statusLabel}>Salida {todayTurns.length > 1 ? `#${index + 1}` : ''}</Text>
+                                        <Text style={[styles.statusTime, turn.salida ? styles.textError : styles.textGray]}>
+                                            {turn.salida ? formatTime(new Date(turn.salida.timestamp)) : '--:--'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ))
+                        )}
                     </View>
-                </View>
 
-                <View style={styles.actionsContainer}>
-                    <TouchableOpacity
-                        onPress={() => handleFichaje('entrada')}
-                        disabled={!!todayEntries.entrada || loading}
-                        style={[styles.actionButton, styles.btnSuccess, (todayEntries.entrada || loading) && styles.btnDisabled]}
-                    >
-                        <Text style={styles.actionButtonTitle}>FICHAR ENTRADA</Text>
-                        <Text style={styles.actionButtonSub}>Registrar inicio de jornada</Text>
-                    </TouchableOpacity>
+                    <View style={styles.actionsContainer}>
+                        <TouchableOpacity
+                            onPress={() => handleFichaje('entrada')}
+                            disabled={(todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida) || loading}
+                            style={[
+                                styles.actionButton,
+                                styles.btnSuccess,
+                                ((todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida) || loading) && styles.btnDisabled
+                            ]}
+                        >
+                            <Text style={styles.actionButtonTitle}>FICHAR ENTRADA</Text>
+                            <Text style={styles.actionButtonSub}>Iniciar nuevo turno</Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        onPress={() => handleFichaje('salida')}
-                        disabled={!todayEntries.entrada || !!todayEntries.salida || loading}
-                        style={[styles.actionButton, styles.btnError, (!todayEntries.entrada || todayEntries.salida || loading) && styles.btnDisabled]}
-                    >
-                        <Text style={styles.actionButtonTitle}>FICHAR SALIDA</Text>
-                        <Text style={styles.actionButtonSub}>Registrar fin de jornada</Text>
-                    </TouchableOpacity>
-                </View>
+                        <TouchableOpacity
+                            onPress={() => handleFichaje('salida')}
+                            disabled={todayTurns.length === 0 || !!todayTurns[todayTurns.length - 1].salida || loading}
+                            style={[
+                                styles.actionButton,
+                                styles.btnError,
+                                (todayTurns.length === 0 || !!todayTurns[todayTurns.length - 1].salida || loading) && styles.btnDisabled
+                            ]}
+                        >
+                            <Text style={styles.actionButtonTitle}>FICHAR SALIDA</Text>
+                            <Text style={styles.actionButtonSub}>Finalizar turno actual</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
             </View>
 
             <CustomAlert
@@ -235,6 +259,7 @@ const UserDashboard = () => {
         </BackgroundBlur>
     );
 };
+
 
 const styles = StyleSheet.create({
     container: {
@@ -315,6 +340,17 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center'
     },
+    turnRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+    },
+    turnBorder: {
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+        marginTop: 8,
+    },
     statusItem: {
         flex: 1,
         alignItems: 'center'
@@ -345,9 +381,8 @@ const styles = StyleSheet.create({
         color: '#9CA3AF'
     },
     actionsContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        marginTop: -70,
+        paddingTop: 20,
+        paddingBottom: 40,
         alignItems: 'center'
     },
     actionButton: {

@@ -28,6 +28,7 @@
     "expo-notifications": "~0.29.14",
     "expo-sharing": "~13.0.1",
     "expo-status-bar": "~2.0.1",
+    "expo-updates": "^29.0.15",
     "nativewind": "^4.0.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -40,7 +41,9 @@
     "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2"
+    "@babel/core": "^7.25.2",
+    "@types/react": "~18.3.12",
+    "typescript": "^5.3.3"
   },
   "private": true
 }
