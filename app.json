@@ -35,7 +35,6 @@
       "themeColor": "#1E3A8A",
       "backgroundColor": "#1E3A8A",
       "display": "standalone",
-      "orientation": "default",
       "description": "Aplicación de fichaje para empleados de Palacín.",
       "name": "Fichaje Palacín"
     },

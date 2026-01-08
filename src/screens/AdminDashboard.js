@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, FlatList, TouchableOpacity, Image, TextInput, ScrollView, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
