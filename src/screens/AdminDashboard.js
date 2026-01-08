@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, TextInput, ScrollView, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, Modal, FlatList, TouchableOpacity, Image, TextInput, ScrollView, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,8 @@ const AdminDashboard = () => {
     const [loadingEntries, setLoadingEntries] = useState(false);
     const [timeEntries, setTimeEntries] = useState([]);
     const [users, setUsers] = useState([]);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [selectedUser, setSelectedUser] = useState({ id: 'all', full_name: 'Todos los empleados' });
 
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -48,7 +50,7 @@ const AdminDashboard = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [selectedMonth, selectedYear]);
+    }, [selectedMonth, selectedYear, selectedUser]);
 
     const handleCreateUser = async () => {
         if (!email || !password || !fullName) {
@@ -111,7 +113,7 @@ const AdminDashboard = () => {
             setLoadingEntries(true);
             const { start, end } = getFilterRange();
 
-            const { data, error } = await supabase
+            let query = supabase
                 .from('time_entries')
                 .select(`
                     id,
@@ -123,6 +125,12 @@ const AdminDashboard = () => {
                 .lte('timestamp', end)
                 .order('timestamp', { ascending: false })
                 .limit(100);
+
+            if (selectedUser.id !== 'all') {
+                query = query.eq('user_id', selectedUser.id);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setTimeEntries(data || []);
@@ -139,7 +147,7 @@ const AdminDashboard = () => {
     const cardStyle = [styles.card, isWide && { width: '48.5%', maxWidth: 'none', alignSelf: 'auto' }];
 
     return (
-        <BackgroundBlur intensity={70} >
+        <BackgroundBlur>
             <View style={styles.headerWrapper}>
                 <View style={styles.headerContainer}>
                     <View style={styles.headerContent}>
@@ -152,19 +160,15 @@ const AdminDashboard = () => {
                             <Text style={styles.logoutTextSm}>Salir</Text>
                         </TouchableOpacity>
                     </View>
-                    <LinearGradient
-                        colors={['rgba(0, 0, 0, 0.5)', 'transparent']}
-                        style={{ position: 'absolute', left: 0, right: 0, bottom: -15, height: 15 }}
-                    />
                 </View>
             </View>
 
             <ScrollView
                 style={styles.container}
-                contentContainerStyle={{ paddingTop: 130 }}
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={{ flexDirection: isWide ? 'row' : 'column', flexWrap: 'wrap', justifyContent: 'space-between', gap: 20, maxWidth: 1700, alignSelf: 'center', width: '100%' }}>
+                <View style={[styles.mainWrapper, { flexDirection: isWide ? 'row' : 'column' }]}>
 
                     {/* Tarjeta 1: Crear Empleado */}
                     <View style={cardStyle}>
@@ -208,8 +212,55 @@ const AdminDashboard = () => {
                             <TouchableOpacity onPress={() => {
                                 if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(selectedYear + 1); }
                                 else { setSelectedMonth(selectedMonth + 1); }
-                            }} style={{ padding: 10 }}><Text style={{ fontSize: 20 }}>▶️</Text></TouchableOpacity>
+                            }} style={{
+                                padding: 10,
+                            }}><Text style={{ fontSize: 20 }}>▶️</Text></TouchableOpacity>
                         </View>
+
+                        {/* lista de empleados para filtrar select */}
+                        <View style={styles.filterContainer}>
+                            <TouchableOpacity style={styles.pickerButton} onPress={() => setModalVisible(true)}>
+                                <Text style={styles.filterText}>{selectedUser?.full_name || 'Seleccionar Empleado'}</Text>
+                                <Text style={styles.chevron}>▼</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Modal transparent={true} visible={modalVisible} animationType="fade" onRequestClose={() => setModalVisible(false)}>
+                            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
+                                <View style={styles.modalContent}>
+                                    <View style={styles.modalHeader}>
+                                        <Text style={styles.modalTitle}>Filtrar por Empleado</Text>
+                                        <TouchableOpacity onPress={() => setModalVisible(false)}>
+                                            <Text style={styles.modalClose}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <FlatList
+                                        data={[{ id: 'all', full_name: 'Todos los empleados' }, ...users]}
+                                        keyExtractor={(item) => item.id.toString()}
+                                        style={{ maxHeight: 400 }}
+                                        renderItem={({ item }) => (
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.optionItem,
+                                                    selectedUser.id === item.id && styles.optionItemSelected
+                                                ]}
+                                                onPress={() => {
+                                                    setSelectedUser(item);
+                                                    setModalVisible(false);
+                                                }}
+                                            >
+                                                <Text style={[
+                                                    styles.optionText,
+                                                    selectedUser.id === item.id && styles.optionTextSelected
+                                                ]}>
+                                                    {item.full_name}
+                                                </Text>
+                                                {selectedUser.id === item.id && <Text style={styles.checkIcon}>✓</Text>}
+                                            </TouchableOpacity>
+                                        )}
+                                    />
+                                </View>
+                            </TouchableOpacity>
+                        </Modal>
 
                         {loadingEntries ? (
                             <ActivityIndicator style={{ marginTop: 20 }} color="#1E3A8A" />
@@ -271,14 +322,26 @@ const AdminDashboard = () => {
                 {...alertConfig}
                 onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
             />
-        </BackgroundBlur >
+        </BackgroundBlur>
     );
 };
 
 const styles = StyleSheet.create({
+    scrollContent: {
+        paddingTop: 130,
+        paddingBottom: 40,
+    },
+    mainWrapper: {
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        paddingHorizontal: 15,
+        gap: 20,
+        maxWidth: 1300,
+        alignSelf: 'center',
+        width: '100%'
+    },
     container: {
         flex: 1,
-        padding: 15
     },
     headerWrapper: {
         position: 'absolute',
@@ -299,7 +362,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         width: '100%',
-        maxWidth: 1700,
+        maxWidth: 1300,
         alignSelf: 'center',
     },
     logo: {
@@ -337,7 +400,7 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 3,
         width: '100%',
-        maxWidth: 1700,
+        maxWidth: 1300,
         alignSelf: 'center'
     },
     cardHeader: {
@@ -389,14 +452,14 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         backgroundColor: '#F3F4F6',
         padding: 8,
-        borderRadius: 10
+        borderRadius: 10,
     },
     filterText: {
         fontSize: 16,
         marginHorizontal: 20,
         minWidth: 150,
         textAlign: 'center',
-        fontFamily: 'Comic Sans MS-Bold'
+        fontFamily: 'Comic Sans MS-Bold',
     },
     tableHeader: {
         flexDirection: 'row',
@@ -467,6 +530,84 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
         fontFamily: 'Comic Sans MS'
     },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderRadius: 20,
+        width: '100%',
+        maxWidth: 400,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+        elevation: 10
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        paddingBottom: 10
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontFamily: 'Comic Sans MS-Bold',
+        color: '#1F2937'
+    },
+    modalClose: {
+        fontSize: 20,
+        color: '#9CA3AF',
+        padding: 5
+    },
+    optionItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 15,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        marginBottom: 5
+    },
+    optionItemSelected: {
+        backgroundColor: '#EFF6FF'
+    },
+    optionText: {
+        fontSize: 16,
+        fontFamily: 'Comic Sans MS',
+        color: '#374151'
+    },
+    optionTextSelected: {
+        color: '#1E3A8A',
+        fontFamily: 'Comic Sans MS-Bold'
+    },
+    checkIcon: {
+        color: '#1E3A8A',
+        fontSize: 18
+    },
+    chevron: {
+        color: '#9CA3AF',
+        fontSize: 12
+    },
+    pickerButton: {
+        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        padding: 14,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB'
+    },
 });
+
 
 export default AdminDashboard;

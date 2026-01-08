@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
@@ -164,7 +163,7 @@ const UserDashboard = () => {
     };
 
     return (
-        <BackgroundBlur intensity={70}>
+        <BackgroundBlur>
             <View style={styles.headerWrapper}>
                 <View style={styles.headerContainer}>
                     <View style={styles.headerContent}>
@@ -182,10 +181,6 @@ const UserDashboard = () => {
                             <Text style={styles.logoutText}>Salir</Text>
                         </TouchableOpacity>
                     </View>
-                    <LinearGradient
-                        colors={['rgba(0, 0, 0, 0.5)', 'transparent']}
-                        style={{ position: 'absolute', left: 0, right: 0, bottom: -10, height: 10 }}
-                    />
                 </View>
             </View>
 
