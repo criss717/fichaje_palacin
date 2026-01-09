@@ -219,7 +219,7 @@ const AdminDashboard = () => {
                         {/* lista de empleados para filtrar select */}
                         <View style={styles.filterContainer}>
                             <TouchableOpacity style={styles.pickerButton} onPress={() => setModalVisible(true)}>
-                                <Text style={styles.filterText}>{selectedUser?.full_name || 'Seleccionar Empleado'}</Text>
+                                <Text style={styles.filterText}>{selectedUser?.full_name || 'Seleccionar Empleados ! c'}</Text>
                                 <Text style={styles.chevron}>▼</Text>
                             </TouchableOpacity>
                         </View>
