@@ -192,7 +192,7 @@ const AdminDashboard = () => {
                     {/* Tarjeta 3: Últimos Fichajes */}
                     <View style={cardStyle}>
                         <View style={styles.rowBetween}>
-                            <Text style={[styles.cardHeader, { marginBottom: 0 }]}>⏱️ Fichajes</Text>
+                            <Text style={[styles.cardHeader, { marginBottom: 0 }]}>⏱️ Fichajes modificados</Text>
                             <TouchableOpacity onPress={loadTimeEntries}>
                                 <Text style={styles.refreshText}>🔄 Actualizar Lista</Text>
                             </TouchableOpacity>
@@ -219,7 +219,7 @@ const AdminDashboard = () => {
                         {/* lista de empleados para filtrar select */}
                         <View style={styles.filterContainer}>
                             <TouchableOpacity style={styles.pickerButton} onPress={() => setModalVisible(true)}>
-                                <Text style={styles.filterText}>{selectedUser?.full_name || 'Seleccionar Empleados ! c'}</Text>
+                                <Text style={styles.filterText}>{selectedUser?.full_name || 'Seleccionar Empleados'}</Text>
                                 <Text style={styles.chevron}>▼</Text>
                             </TouchableOpacity>
                         </View>
