@@ -192,7 +192,7 @@ const AdminDashboard = () => {
                     {/* Tarjeta 3: Últimos Fichajes */}
                     <View style={cardStyle}>
                         <View style={styles.rowBetween}>
-                            <Text style={[styles.cardHeader, { marginBottom: 0 }]}>⏱️ Fichajes modificados</Text>
+                            <Text style={[styles.cardHeader, { marginBottom: 0 }]}>⏱️ Fichajes</Text>
                             <TouchableOpacity onPress={loadTimeEntries}>
                                 <Text style={styles.refreshText}>🔄 Actualizar Lista</Text>
                             </TouchableOpacity>
