@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
 import { formatDate, formatTime, isToday } from '../utils/helpers';
 import { registerForPushNotificationsAsync, scheduleClockOutReminder, cancelAllNotifications } from '../utils/notifications';
-import { getCurrentLocation, getLocationDeniedMessage } from '../utils/location';
+import { getCurrentLocation, getLocationErrorMessage } from '../utils/location';
 import CustomAlert from '../components/CustomAlert';
 
 const UserDashboard = () => {
@@ -156,20 +156,18 @@ const UserDashboard = () => {
                         device_type: loc.device_type,
                     };
                 } catch (locError) {
-                    if (locError.message === 'PERMISSION_DENIED') {
-                        showAlert(
-                            '📍 Ubicación Requerida',
-                            getLocationDeniedMessage(),
-                            'warning',
-                            null,
-                            'Entendido',
-                            { showCancelButton: false }
-                        );
-                        setLoading(false);
-                        return; // Bloqueamos el fichaje
-                    }
-                    // Si es otro error (timeout, etc.), dejamos pasar sin coordenadas
-                    console.warn('No se pudo obtener ubicación:', locError.message);
+                    // Bloqueamos el fichaje en CUALQUIER fallo de ubicación:
+                    // GPS_DISABLED, PERMISSION_DENIED, LOCATION_UNAVAILABLE
+                    showAlert(
+                        '📍 Ubicación Requerida',
+                        getLocationErrorMessage(locError.message),
+                        'warning',
+                        null,
+                        'Entendido',
+                        { showCancelButton: false }
+                    );
+                    setLoading(false);
+                    return; // Bloqueamos el fichaje siempre
                 }
             }
             // --- FIN GEOLOCALIZACIÓN ---
