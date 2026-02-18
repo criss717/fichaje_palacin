@@ -37,15 +37,12 @@ export const AuthProvider = ({ children }) => {
 
         // Escuchar cambios de autenticación
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            console.log('AuthProvider: Cambio de estado', _event);
-
             const nextUser = session?.user ?? null;
             const prevUser = userRef.current;
 
             // Si cambia el ID del usuario (login, logout, o cambio de cuenta)
             // Evitamos parpadeos si es solo un refresco de token (mismo ID)
             if (nextUser?.id !== prevUser?.id) {
-                console.log('AuthProvider: Cambio de usuario detectado, limpiando estado anterior...');
                 setLoading(true);
                 setProfile(null);
             }

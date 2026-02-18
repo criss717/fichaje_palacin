@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, FlatList, TouchableOpacity, Image, TextInput, ScrollView, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, Modal, FlatList, TouchableOpacity, Image, TextInput, ScrollView, ActivityIndicator, StyleSheet, useWindowDimensions, Linking } from 'react-native';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
@@ -21,7 +21,6 @@ const AdminDashboard = () => {
 
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
     // Estado para Alerta Personalizada
     const [alertConfig, setAlertConfig] = useState({
         visible: false,
@@ -118,6 +117,10 @@ const AdminDashboard = () => {
                     id,
                     entry_type,
                     timestamp,
+                    latitude,
+                    longitude,
+                    accuracy,
+                    device_type,
                     profiles:user_id (full_name, email)
                 `)
                 .gte('timestamp', start)
@@ -268,7 +271,8 @@ const AdminDashboard = () => {
                                 <View style={styles.tableHeader}>
                                     <Text style={[styles.th, { flex: 2 }]}>Empleado</Text>
                                     <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>Tipo</Text>
-                                    <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Hora</Text>
+                                    <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>Hora</Text>
+                                    <Text style={[styles.th, { flex: 1, textAlign: 'center' }]}>Ubic.</Text>
                                 </View>
                                 <ScrollView style={{ maxHeight: isWide ? 750 : 400 }} nestedScrollEnabled={true}>
                                     {timeEntries.map((entry) => (
@@ -282,7 +286,19 @@ const AdminDashboard = () => {
                                                     <Text style={styles.badgeText}>{entry.entry_type === 'entrada' ? 'ENT' : 'SAL'}</Text>
                                                 </View>
                                             </View>
-                                            <Text style={[styles.tdTime, { flex: 1, textAlign: 'right' }]}>{formatTime(new Date(entry.timestamp))}</Text>
+                                            <Text style={[styles.tdTime, { flex: 1, textAlign: 'center' }]}>{formatTime(new Date(entry.timestamp))}</Text>
+                                            <View style={{ flex: 1, alignItems: 'center' }}>
+                                                {entry.latitude && entry.longitude ? (
+                                                    <TouchableOpacity
+                                                        onPress={() => Linking.openURL(`https://www.google.com/maps?q=${entry.latitude},${entry.longitude}`)}
+                                                        style={styles.mapBtn}
+                                                    >
+                                                        <Text style={styles.mapBtnText}>📍</Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <Text style={styles.mapBtnEmpty}>—</Text>
+                                                )}
+                                            </View>
                                         </View>
                                     ))}
                                     {timeEntries.length === 0 && <Text style={styles.emptyText}>No hay registros recientes</Text>}
@@ -605,6 +621,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB'
+    },
+    mapBtn: {
+        padding: 4,
+    },
+    mapBtnText: {
+        fontSize: 16,
+    },
+    mapBtnEmpty: {
+        fontSize: 12,
+        color: '#D1D5DB',
     },
 });
 

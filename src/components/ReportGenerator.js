@@ -43,7 +43,7 @@ const ReportGenerator = ({ users = [] }) => {
     const handleExport = async () => {
         try {
             setLoading(true);
-            let query = supabase.from('time_entries').select(`id, entry_type, timestamp, profiles:user_id (full_name, email)`);
+            let query = supabase.from('time_entries').select(`id, entry_type, timestamp, latitude, longitude, accuracy, device_type, profiles:user_id (full_name, email)`);
 
             if (selectedUser.id !== 'all') query = query.eq('user_id', selectedUser.id);
 
@@ -73,11 +73,18 @@ const ReportGenerator = ({ users = [] }) => {
             }
 
             const BOM = '\uFEFF';
-            let csvContent = BOM + '"Empleado";"Tipo";"Fecha";"Hora"\n';
+            let csvContent = BOM + '"Empleado";"Tipo";"Fecha";"Hora";"Latitud";"Longitud";"Precisión (m)";"Dispositivo";"Ver en Mapa"\n';
             data.forEach(entry => {
                 const date = new Date(entry.timestamp);
                 const type = entry.entry_type === 'entrada' ? 'ENTRADA' : 'SALIDA';
-                csvContent += `"${entry.profiles?.full_name || 'Desconocido'}";"${type}";"${formatDate(date)}";"${formatTime(date)}"\n`;
+                const lat = entry.latitude != null ? entry.latitude.toFixed(6) : '';
+                const lng = entry.longitude != null ? entry.longitude.toFixed(6) : '';
+                const accuracy = entry.accuracy != null ? Math.round(entry.accuracy) : '';
+                const device = entry.device_type || '';
+                const mapUrl = entry.latitude && entry.longitude
+                    ? `https://www.google.com/maps?q=${entry.latitude},${entry.longitude}`
+                    : '';
+                csvContent += `"${entry.profiles?.full_name || 'Desconocido'}";"${type}";"${formatDate(date)}";"${formatTime(date)}";"${lat}";"${lng}";"${accuracy}";"${device}";"${mapUrl}"\n`;
             });
 
             const fileName = `Informe_${selectedUser.full_name.replace(/\s/g, '_')}_${selectedYear.name}.csv`;
