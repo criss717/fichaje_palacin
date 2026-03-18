@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, AppState } from 'react-native';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../config/supabase';
@@ -40,6 +40,14 @@ const UserDashboard = () => {
         setupNotifications();
         loadTodayEntries();
 
+        // Escuchar cambios de estado de la app (Primer plano / Segundo plano)
+        const subscription = AppState.addEventListener('change', nextAppState => {
+            if (nextAppState === 'active') {
+                // Silenciosamente refrescamos los datos al volver a la app
+                loadTodayEntries();
+            }
+        });
+
         const channel = supabase
             .channel('public:time_entries')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries' }, () => {
@@ -48,6 +56,7 @@ const UserDashboard = () => {
             .subscribe();
 
         return () => {
+            subscription.remove();
             supabase.removeChannel(channel);
         };
     }, []);
@@ -127,6 +136,9 @@ const UserDashboard = () => {
     };
 
     const handleFichaje = async (type, customTimestamp = null) => {
+        // --- 1. GUARDIA ANTI-DOBLE CLIC ---
+        if (loading) return;
+
         // Validaciones para turnos partidos
         const currentlyIn = todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida;
 
