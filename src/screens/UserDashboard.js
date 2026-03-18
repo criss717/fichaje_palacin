@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, AppState } from 'react-native';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
@@ -148,18 +148,17 @@ const UserDashboard = () => {
         // Validaciones para turnos partidos
         const currentlyIn = todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida;
 
-        if (type === 'entrada' && currentlyIn) {
-            showAlert('💡 Aviso', 'Ya estás dentro de un turno. Debes fichar salida primero.', 'info');
-            return;
-        }
-
-        if (type === 'salida' && !currentlyIn && !customTimestamp) {
-            showAlert('💡 Aviso', 'No tienes ninguna entrada activa para cerrar.', 'info');
-            return;
-        }
-
         try {
-            setLoading(true);
+            // Validaciones iniciales (dentro del try para asegurar que el finally libere el bloqueo)
+            if (type === 'entrada' && currentlyIn) {
+                showAlert('💡 Aviso', 'Ya estás dentro de un turno. Debes fichar salida primero.', 'info');
+                return;
+            }
+
+            if (type === 'salida' && !currentlyIn && !customTimestamp) {
+                showAlert('💡 Aviso', 'No tienes ninguna entrada activa para cerrar.', 'info');
+                return;
+            }
 
             // --- GEOLOCALIZACIÓN ---
             // Solo pedimos ubicación si no es un fichaje correctivo automático
@@ -196,8 +195,11 @@ const UserDashboard = () => {
             // Volvemos a comprobar el estado por si otro proceso terminó justo ahora
             if (type === 'entrada' && (todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida)) {
                 console.warn('Bloqueo de seguridad: Ya hay una entrada activa detectada justo antes de insertar.');
-                setLoading(false);
-                isClocking.current = false;
+                return; // el finally hará el rest de loading e isClocking
+            }
+
+            if (type === 'salida' && !customTimestamp && (todayTurns.length === 0 || todayTurns[todayTurns.length - 1].salida)) {
+                console.warn('Bloqueo de seguridad: Ya se registró la salida justo antes de insertar.');
                 return;
             }
 
@@ -233,7 +235,7 @@ const UserDashboard = () => {
                             resizeMode="contain"
                         />
                         <View style={styles.userInfo}>
-                            <Text style={styles.welcomeText}>¡Hola!,</Text>
+                            <Text style={styles.welcomeText}>¡Bienvenido,</Text>
                             <Text style={styles.userName}>{profile?.full_name || 'Usuario'}!</Text>
                             <Text style={styles.dateText}>{formatDate(new Date())}</Text>
                         </View>
