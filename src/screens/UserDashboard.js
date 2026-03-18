@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, AppState } from 'react-native';
 import BackgroundBlur from '../components/BackgroundBlur';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,7 @@ const UserDashboard = () => {
     const [todayTurns, setTodayTurns] = useState([]);
     const [lastEntry, setLastEntry] = useState(null);
     const [loading, setLoading] = useState(false);
+    const isClocking = useRef(false); // Bloqueo síncrono para evitar doble clic ultra rápido
 
     // Estado para Alerta Personalizada
     const [alertConfig, setAlertConfig] = useState({
@@ -136,8 +137,13 @@ const UserDashboard = () => {
     };
 
     const handleFichaje = async (type, customTimestamp = null) => {
-        // --- 1. GUARDIA ANTI-DOBLE CLIC ---
-        if (loading) return;
+        // --- 1. GUARDIA ANTI-DOBLE CLIC SÍNCRONA ---
+        // Usamos un Ref porque el estado 'loading' es asíncrono y no bloquea clics en el mismo milisegundo.
+        if (isClocking.current || loading) return;
+
+        // Marcamos el bloqueo inmediatamente
+        isClocking.current = true;
+        setLoading(true);
 
         // Validaciones para turnos partidos
         const currentlyIn = todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida;
@@ -185,6 +191,16 @@ const UserDashboard = () => {
             // --- FIN GEOLOCALIZACIÓN ---
 
             const { data: { user } } = await supabase.auth.getUser();
+
+            // --- 3. ÚLTIMA VALIDACIÓN ANTES DE INSERTAR ---
+            // Volvemos a comprobar el estado por si otro proceso terminó justo ahora
+            if (type === 'entrada' && (todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida)) {
+                console.warn('Bloqueo de seguridad: Ya hay una entrada activa detectada justo antes de insertar.');
+                setLoading(false);
+                isClocking.current = false;
+                return;
+            }
+
             const entryData = { user_id: user.id, entry_type: type, ...locationData };
 
             if (customTimestamp) {
@@ -197,11 +213,12 @@ const UserDashboard = () => {
             if (type === 'salida') await cancelAllNotifications();
 
             showAlert('✨ ¡Excelente!', `Tu ${type} ha sido registrada con éxito.`, 'success');
-            loadTodayEntries();
+            await loadTodayEntries(); // Esperamos a que cargue antes de liberar el bloqueo
         } catch (error) {
             showAlert('❌ Ups...', `Hubo un inconveniente: ${error.message}`, 'error');
         } finally {
             setLoading(false);
+            isClocking.current = false; // Liberamos el bloqueo síncrono
         }
     };
 
@@ -216,7 +233,7 @@ const UserDashboard = () => {
                             resizeMode="contain"
                         />
                         <View style={styles.userInfo}>
-                            <Text style={styles.welcomeText}>¡Hola,</Text>
+                            <Text style={styles.welcomeText}>¡Hola!,</Text>
                             <Text style={styles.userName}>{profile?.full_name || 'Usuario'}!</Text>
                             <Text style={styles.dateText}>{formatDate(new Date())}</Text>
                         </View>
