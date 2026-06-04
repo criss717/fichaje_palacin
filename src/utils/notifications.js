@@ -52,10 +52,10 @@ export async function scheduleClockOutReminder() {
             return;
         }
 
-        // 3. Definir la hora objetivo: 18:15 de HOY
+        // 3. Definir la hora objetivo: 18:15 de HOY o en horario intensivo 14:03
         const now = new Date();
         const triggerDate = new Date();
-        triggerDate.setHours(18, 15, 0, 0);
+        triggerDate.setHours(14, 3, 0, 0);
 
         // 4. Solo programamos si la hora aún no ha pasado
         if (now < triggerDate) {
@@ -74,9 +74,9 @@ export async function scheduleClockOutReminder() {
                     date: triggerDate,
                 },
             });
-            console.log('🚀 Recordatorio programado correctamente para las 18:15');
+            console.log('🚀 Recordatorio programado correctamente para las 14:03');
         } else {
-            console.log('La hora de salida (18:15) ya pasó. No se programa para hoy.');
+            console.log('La hora de salida (14:03) ya pasó. No se programa para hoy.');
         }
     } catch (error) {
         console.error('Error al programar recordatorio:', error);
