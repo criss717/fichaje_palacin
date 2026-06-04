@@ -9,6 +9,14 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 serve(async (req) => {
     try {
+        console.log("=== INICIANDO FUNCIÓN CHECK-MISSING-CLOCKOUTS ===");
+
+        // Logs de variables de entorno
+        console.log("GMAIL_USER configurado:", !!GMAIL_USER, GMAIL_USER ? `(${GMAIL_USER.substring(0, 3)}... - Longitud: ${GMAIL_USER.length})` : "");
+        console.log("GMAIL_APP_PASSWORD configurado:", !!GMAIL_APP_PASSWORD, GMAIL_APP_PASSWORD ? `(Longitud: ${GMAIL_APP_PASSWORD.length})` : "");
+        console.log("SUPABASE_URL configurado:", !!SUPABASE_URL);
+        console.log("SUPABASE_SERVICE_ROLE_KEY configurado:", !!SUPABASE_SERVICE_ROLE_KEY);
+
         if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
             throw new Error('Gmail credentials no configuradas')
         }
@@ -59,13 +67,15 @@ serve(async (req) => {
             }
         }
 
+        const mailPermitidos = ['albertorc87@hotmail.com', 'service@jpalacin.com', 'mono-717@hotmail.com', 'lmoreno120@hotmail.com']
         const usersToNotify = []
         for (const [userId, data] of userEntries) {
-            if (data.entrada && !data.salida && data.user?.email) {
+            if (data.entrada && !data.salida && data.user?.email && mailPermitidos.includes(data.user.email)) {
                 usersToNotify.push({
                     email: data.user.email,
                     name: data.user.full_name || 'Usuario',
                     entryTime: new Date(data.entrada.timestamp).toLocaleTimeString('es-ES', {
+                        timeZone: 'Europe/Madrid',
                         hour: '2-digit',
                         minute: '2-digit'
                     })
@@ -77,7 +87,7 @@ serve(async (req) => {
             return new Response(
                 JSON.stringify({
                     success: true,
-                    message: 'No hay usuarios pendientes de fichar salida',
+                    message: 'No hay usuarios autorizados y pendientes de fichar salida',
                     usersNotified: 0
                 }),
                 {
@@ -104,7 +114,7 @@ serve(async (req) => {
         for (const user of usersToNotify) {
             try {
                 await client.send({
-                    from: GMAIL_USER,
+                    from: `Joaquín Palacín <${GMAIL_USER}>`,
                     to: user.email,
                     subject: "⏰ Recordatorio: No has fichado tu salida",
                     content: "auto",
