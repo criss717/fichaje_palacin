@@ -32,15 +32,16 @@ serve(async (req) => {
         const { data: todayEntries, error: entriesError } = await supabaseClient
             .from('time_entries')
             .select(`
-        id,
-        timestamp,
-        entry_type,
-        user_id,
-        profiles:user_id (
-          full_name,
-          email
-        )
-      `)
+                    id,
+                    timestamp,
+                    entry_type,
+                    user_id,
+                    device_type,
+                    profiles:user_id (
+                    full_name,
+                    email
+                    )
+                `)
             .gte('timestamp', today.toISOString())
             .order('timestamp', { ascending: true })
 
@@ -55,7 +56,8 @@ serve(async (req) => {
                 userEntries.set(entry.user_id, {
                     user: entry.profiles,
                     entrada: null,
-                    salida: null
+                    salida: null,
+                    device_type: entry.device_type
                 })
             }
 
@@ -67,10 +69,10 @@ serve(async (req) => {
             }
         }
 
-        const mailPermitidos = ['albertorc87@hotmail.com', 'service@jpalacin.com', 'mono-717@hotmail.com', 'lmoreno120@hotmail.com']
+        //const mailPermitidos = ['albertorc87@hotmail.com', 'service@jpalacin.com', 'mono-717@hotmail.com', 'lmoreno120@hotmail.com']
         const usersToNotify = []
-        for (const [userId, data] of userEntries) {
-            if (data.entrada && !data.salida && data.user?.email && mailPermitidos.includes(data.user.email)) {
+        for (const [_, data] of userEntries) {
+            if (data.entrada && !data.salida && data.user?.email && data.device_type === 'web') {
                 usersToNotify.push({
                     email: data.user.email,
                     name: data.user.full_name || 'Usuario',
