@@ -3,6 +3,7 @@ import { View, Image, StyleSheet, Dimensions } from 'react-native';
 // import { BlurView } from 'expo-blur'; // Desactivado temporalmente para probar
 
 const { width, height } = Dimensions.get('window');
+const inGrandesPantallas = width > 768; 
 
 const BackgroundBlur = ({ children, intensity = 50 }) => {
     return (
@@ -24,6 +25,7 @@ const BackgroundBlur = ({ children, intensity = 50 }) => {
     );
 };
 
+//para pantallas grandes se hara un ajuste de la imagen de fondo para que se vea bien en todas las resoluciones 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -31,10 +33,10 @@ const styles = StyleSheet.create({
     },
     fixedBackground: {
         position: 'absolute',
-        top: -500,
-        left: -255,
-        width: width + 510,
-        height: height + 550,
+        top: inGrandesPantallas ? -200 : -465,
+        left: inGrandesPantallas ? -350 : -450,
+        width: inGrandesPantallas ? width +500 : width +510,
+        height: inGrandesPantallas ? height + 550 : height +550,
     },
     content: {
         flex: 1,
@@ -44,7 +46,7 @@ const styles = StyleSheet.create({
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)', // Capa más clara para ver mejor la imagen
+        backgroundColor: inGrandesPantallas ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.2)'
     }
 });
 
