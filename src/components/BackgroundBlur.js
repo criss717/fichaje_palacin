@@ -35,8 +35,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: inGrandesPantallas ? -200 : -465,
         left: inGrandesPantallas ? -350 : -450,
-        width: inGrandesPantallas ? width +500 : width +510,
-        height: inGrandesPantallas ? height + 550 : height +550,
+        width: width +510,
+        height: height +550,
     },
     content: {
         flex: 1,
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: inGrandesPantallas ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.2)'
+        backgroundColor: inGrandesPantallas ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.5)'
     }
 });
 
