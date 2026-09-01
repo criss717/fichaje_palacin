@@ -49,34 +49,19 @@ serve(async (req) => {
             throw new Error(`Error al obtener entradas: ${entriesError.message}`)
         }
 
-        const userEntries = new Map()
-
+        // Agrupar y quedarnos con el ÚLTIMO fichaje de cada usuario hoy
+        const lastUserEntries = new Map()
         for (const entry of todayEntries || []) {
-            if (!userEntries.has(entry.user_id)) {
-                userEntries.set(entry.user_id, {
-                    user: entry.profiles,
-                    entrada: null,
-                    salida: null,
-                    device_type: entry.device_type
-                })
-            }
-
-            const userData = userEntries.get(entry.user_id)
-            if (entry.entry_type === 'entrada' && !userData.entrada) {
-                userData.entrada = entry
-            } else if (entry.entry_type === 'salida') {
-                userData.salida = entry
-            }
+            lastUserEntries.set(entry.user_id, entry)
         }
 
-        //const mailPermitidos = ['albertorc87@hotmail.com', 'service@jpalacin.com', 'mono-717@hotmail.com', 'lmoreno120@hotmail.com']
         const usersToNotify = []
-        for (const [_, data] of userEntries) {
-            if (data.entrada && !data.salida && data.user?.email && data.device_type === 'web') {
+        for (const [_, data] of lastUserEntries) {
+            if (data.entry_type === 'entrada' && data.profiles?.email && data.device_type === 'web') {
                 usersToNotify.push({
-                    email: data.user.email,
-                    name: data.user.full_name || 'Usuario',
-                    entryTime: new Date(data.entrada.timestamp).toLocaleTimeString('es-ES', {
+                    email: data.profiles.email,
+                    name: data.profiles.full_name || 'Usuario',
+                    entryTime: new Date(data.timestamp).toLocaleTimeString('es-ES', {
                         timeZone: 'Europe/Madrid',
                         hour: '2-digit',
                         minute: '2-digit'
