@@ -55,7 +55,7 @@ export async function scheduleClockOutReminder() {
         // 3. Definir la hora objetivo: 18:15 de HOY o en horario intensivo 14:03
         const now = new Date();
         const triggerDate = new Date();
-        triggerDate.setHours(14, 3, 0, 0);
+        triggerDate.setHours(18, 15, 0, 0);
 
         // 4. Solo programamos si la hora aún no ha pasado
         if (now < triggerDate) {
