@@ -35,6 +35,24 @@ export async function registerForPushNotificationsAsync() {
 
 let isSchedulingInProgress = false;
 
+async function scheduleNotification(notificationId, triggerDate) {
+    return await Notifications.scheduleNotificationAsync({
+        identifier: notificationId,
+        content: {
+            title: "⏰ Recordatorio de Salida",
+            body: "Aún no has fichado tu salida hoy. No olvides registrarla antes de irte.",
+            data: { screen: 'UserDashboard' },
+            android: {
+                channelId: 'default',
+            }
+        },
+        trigger: {
+            type: 'date',
+            date: triggerDate,
+        },
+    });
+}
+
 export async function scheduleClockOutReminder() {
     if (Platform.OS === 'web') return; // En web no programamos recordatorios por ahora
     const NOTIFICATION_ID = 'clock-out-reminder';
@@ -52,31 +70,18 @@ export async function scheduleClockOutReminder() {
             return;
         }
 
-        // 3. Definir la hora objetivo: 18:15 de HOY o en horario intensivo 14:03
+        // 3. Definir la hora objetivo: 14:05 y  18:05 si es invierno o en horario intensivo solo a las 14:03 
         const now = new Date();
-        const triggerDate = new Date();
-        triggerDate.setHours(18, 15, 0, 0);
+        const triggerDate14 = new Date();
+        triggerDate14.setHours(14, 5, 0, 0);
 
-        // 4. Solo programamos si la hora aún no ha pasado
-        if (now < triggerDate) {
-            await Notifications.scheduleNotificationAsync({
-                identifier: NOTIFICATION_ID,
-                content: {
-                    title: "⏰ Recordatorio de Salida",
-                    body: "Aún no has fichado tu salida hoy. No olvides registrarla antes de irte.",
-                    data: { screen: 'UserDashboard' },
-                    android: {
-                        channelId: 'default',
-                    }
-                },
-                trigger: {
-                    type: 'date',
-                    date: triggerDate,
-                },
-            });
-            console.log('🚀 Recordatorio programado correctamente para las 14:03');
-        } else {
-            console.log('La hora de salida (14:03) ya pasó. No se programa para hoy.');
+        const triggerDate18 = new Date();
+        triggerDate18.setHours(18, 5, 0, 0);
+
+        if (now < triggerDate14) {
+            await scheduleNotification(NOTIFICATION_ID, triggerDate14);
+        } else if (now < triggerDate18) {
+            await scheduleNotification(NOTIFICATION_ID, triggerDate18);
         }
     } catch (error) {
         console.error('Error al programar recordatorio:', error);
