@@ -8,12 +8,17 @@ import { registerForPushNotificationsAsync, scheduleClockOutReminder, cancelAllN
 import { getCurrentLocation, getLocationErrorMessage } from '../utils/location';
 import CustomAlert from '../components/CustomAlert';
 
+// Mutex a nivel de módulo: sobrevive a re-renderizados o re-montajes accidentales del componente
+let isGlobalClockingInProgress = false;
+
 const UserDashboard = () => {
-    const { profile, signOut } = useAuth();
+    const { user: authUser, profile, signOut } = useAuth();
     const [todayTurns, setTodayTurns] = useState([]);
     const [lastEntry, setLastEntry] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
     const isClocking = useRef(false); // Bloqueo síncrono para evitar doble clic ultra rápido
+    const todayTurnsRef = useRef([]); // Ref sincronizada para evitar lecturas obsoletas (stale closures)
 
     // Estado para Alerta Personalizada
     const [alertConfig, setAlertConfig] = useState({
@@ -43,16 +48,25 @@ const UserDashboard = () => {
 
         // Escuchar cambios de estado de la app (Primer plano / Segundo plano)
         const subscription = AppState.addEventListener('change', nextAppState => {
-            if (nextAppState === 'active') {
+            if (nextAppState === 'active' && !isGlobalClockingInProgress && !isClocking.current) {
                 // Silenciosamente refrescamos los datos al volver a la app
                 loadTodayEntries();
             }
         });
 
+        const channelConfig = {
+            event: '*',
+            schema: 'public',
+            table: 'time_entries',
+            ...(authUser?.id ? { filter: `user_id=eq.${authUser.id}` } : {})
+        };
+
         const channel = supabase
-            .channel('public:time_entries')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries' }, () => {
-                loadTodayEntries();
+            .channel(`public:time_entries:${authUser?.id || 'current'}`)
+            .on('postgres_changes', channelConfig, () => {
+                if (!isGlobalClockingInProgress && !isClocking.current) {
+                    loadTodayEntries();
+                }
             })
             .subscribe();
 
@@ -60,7 +74,7 @@ const UserDashboard = () => {
             subscription.remove();
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [authUser?.id]);
 
     const setupNotifications = async () => {
         await registerForPushNotificationsAsync();
@@ -71,33 +85,34 @@ const UserDashboard = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Obtenemos fichajes de hoy para el dashboard
-            const { data, error } = await supabase
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            const startOfTodayISO = startOfToday.toISOString();
+
+            // 1. Obtenemos únicamente los fichajes de HOY (evita el límite de 1.000 filas de Supabase tras meses de uso)
+            const { data: todayData, error: todayError } = await supabase
                 .from('time_entries')
                 .select('*')
                 .eq('user_id', user.id)
+                .gte('timestamp', startOfTodayISO)
                 .order('timestamp', { ascending: true }); // Ascendente para agrupar por turnos
 
-            if (error) throw error;
+            if (todayError) throw todayError;
 
             // Procesar turnos del día
             const turns = [];
             let currentTurn = null;
             let lastFoundEntry = null;
 
-            data.forEach(entry => {
-                const entryDate = new Date(entry.timestamp);
-
-                if (isToday(entryDate)) {
-                    if (entry.entry_type === 'entrada') {
-                        if (currentTurn) turns.push(currentTurn); // Si ya había uno abierto (error?), lo cerramos como incompleto
-                        currentTurn = { entrada: entry, salida: null };
-                    } else if (entry.entry_type === 'salida') {
-                        if (currentTurn) {
-                            currentTurn.salida = entry;
-                            turns.push(currentTurn);
-                            currentTurn = null;
-                        }
+            (todayData || []).forEach(entry => {
+                if (entry.entry_type === 'entrada') {
+                    if (currentTurn) turns.push(currentTurn); // Si ya había uno abierto, lo cerramos como incompleto
+                    currentTurn = { entrada: entry, salida: null };
+                } else if (entry.entry_type === 'salida') {
+                    if (currentTurn) {
+                        currentTurn.salida = entry;
+                        turns.push(currentTurn);
+                        currentTurn = null;
                     }
                 }
                 lastFoundEntry = entry;
@@ -105,11 +120,33 @@ const UserDashboard = () => {
 
             if (currentTurn) turns.push(currentTurn);
 
+            // 2. Si aún no hay fichajes hoy, consultamos solo el último fichaje previo para detectar salidas olvidadas
+            if (!lastFoundEntry) {
+                const { data: prevData, error: prevError } = await supabase
+                    .from('time_entries')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .lt('timestamp', startOfTodayISO)
+                    .order('timestamp', { ascending: false })
+                    .limit(1);
+
+                if (!prevError && prevData && prevData.length > 0) {
+                    lastFoundEntry = prevData[0];
+                }
+            }
+
+            todayTurnsRef.current = turns;
             setTodayTurns(turns);
             setLastEntry(lastFoundEntry);
 
-            // Verificación de fichaje olvidado del día anterior (Lógica existente)
-            if (lastFoundEntry && lastFoundEntry.entry_type === 'entrada' && !isToday(new Date(lastFoundEntry.timestamp))) {
+            // Verificación de fichaje olvidado del día anterior (solo si no se está fichando ya)
+            if (
+                !isGlobalClockingInProgress &&
+                !isClocking.current &&
+                lastFoundEntry &&
+                lastFoundEntry.entry_type === 'entrada' &&
+                !isToday(new Date(lastFoundEntry.timestamp))
+            ) {
                 const lastEntryDate = new Date(lastFoundEntry.timestamp);
                 const correctiveExitDate = new Date(lastEntryDate);
                 correctiveExitDate.setHours(23, 59, 59, 999);
@@ -133,20 +170,25 @@ const UserDashboard = () => {
 
         } catch (error) {
             console.error('Error cargando fichajes:', error);
+        } finally {
+            setInitialLoading(false);
         }
     };
 
     const handleFichaje = async (type, customTimestamp = null) => {
-        // --- 1. GUARDIA ANTI-DOBLE CLIC SÍNCRONA ---
-        // Usamos un Ref porque el estado 'loading' es asíncrono y no bloquea clics en el mismo milisegundo.
-        if (isClocking.current || loading) return;
+        // --- 1. GUARDIA ANTI-DOBLE CLIC SÍNCRONA (COMPONENTE + MÓDULO) ---
+        // Usamos tanto un lock de módulo como un Ref para bloquear pulsaciones en el mismo milisegundo
+        // incluso si el componente sufriera un re-montaje mientras espera la señal GPS.
+        if (isGlobalClockingInProgress || isClocking.current || loading || initialLoading) return;
 
         // Marcamos el bloqueo inmediatamente
+        isGlobalClockingInProgress = true;
         isClocking.current = true;
         setLoading(true);
 
-        // Validaciones para turnos partidos
-        const currentlyIn = todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida;
+        // Validaciones iniciales usando la Ref actualizada
+        const currentTurns = todayTurnsRef.current;
+        const currentlyIn = currentTurns.length > 0 && !currentTurns[currentTurns.length - 1].salida;
 
         try {
             // Validaciones iniciales (dentro del try para asegurar que el finally libere el bloqueo)
@@ -183,24 +225,56 @@ const UserDashboard = () => {
                         'Entendido',
                         { showCancelButton: false }
                     );
-                    setLoading(false);
-                    return; // Bloqueamos el fichaje siempre
+                    return; // El bloque finally liberará loading, isClocking e isGlobalClockingInProgress
                 }
             }
             // --- FIN GEOLOCALIZACIÓN ---
 
             const { data: { user } } = await supabase.auth.getUser();
-
-            // --- 3. ÚLTIMA VALIDACIÓN ANTES DE INSERTAR ---
-            // Volvemos a comprobar el estado por si otro proceso terminó justo ahora
-            if (type === 'entrada' && (todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida)) {
-                console.warn('Bloqueo de seguridad: Ya hay una entrada activa detectada justo antes de insertar.');
-                return; // el finally hará el rest de loading e isClocking
+            if (!user) {
+                throw new Error('No se pudo verificar la sesión del usuario.');
             }
 
-            if (type === 'salida' && !customTimestamp && (todayTurns.length === 0 || todayTurns[todayTurns.length - 1].salida)) {
-                console.warn('Bloqueo de seguridad: Ya se registró la salida justo antes de insertar.');
+            // --- 3. VALIDACIÓN REAL CONTRA BASE DE DATOS JUSTO ANTES DE INSERTAR ---
+            // Consultamos directamente el último registro en Supabase tras la espera del GPS
+            // para evitar cualquier condición de carrera, Stale Closure o doble pestaña.
+            let latestQuery = supabase
+                .from('time_entries')
+                .select('id, entry_type, timestamp')
+                .eq('user_id', user.id)
+                .order('timestamp', { ascending: false })
+                .limit(1);
+
+            if (!customTimestamp) {
+                const startOfToday = new Date();
+                startOfToday.setHours(0, 0, 0, 0);
+                latestQuery = latestQuery.gte('timestamp', startOfToday.toISOString());
+            }
+
+            const { data: latestEntries, error: latestError } = await latestQuery;
+            if (latestError) throw latestError;
+
+            const latestDbEntry = latestEntries && latestEntries.length > 0 ? latestEntries[0] : null;
+
+            if (type === 'entrada' && latestDbEntry?.entry_type === 'entrada') {
+                console.warn('Bloqueo de seguridad BD: Ya existe una entrada activa registrada.');
+                await loadTodayEntries();
+                showAlert('💡 Aviso', 'Ya tienes una entrada activa registrada.', 'info');
                 return;
+            }
+
+            if (type === 'salida') {
+                if (!customTimestamp && (!latestDbEntry || latestDbEntry.entry_type === 'salida')) {
+                    console.warn('Bloqueo de seguridad BD: Ya se registró la salida o no hay entrada activa.');
+                    await loadTodayEntries();
+                    showAlert('💡 Aviso', 'La salida de este turno ya ha sido registrada.', 'info');
+                    return;
+                }
+                if (customTimestamp && (!latestDbEntry || latestDbEntry.entry_type === 'salida')) {
+                    console.warn('Bloqueo de seguridad BD: El turno olvidado ya fue cerrado previamente.');
+                    await loadTodayEntries();
+                    return;
+                }
             }
 
             const entryData = { user_id: user.id, entry_type: type, ...locationData };
@@ -210,7 +284,16 @@ const UserDashboard = () => {
             }
 
             const { error } = await supabase.from('time_entries').insert([entryData]);
-            if (error) throw error;
+            if (error) {
+                // Si el trigger de PostgreSQL bloquea un duplicado en el mismo milisegundo, refrescamos sin mostrar error crítico
+                if (error.message?.includes('DUPLICATE_TIME_ENTRY') || error.code === 'P0001') {
+                    console.warn('Duplicado interceptado por el trigger de Supabase:', error.message);
+                    await loadTodayEntries();
+                    showAlert('✨ ¡Excelente!', `Tu ${type} ha sido registrada con éxito.`, 'success');
+                    return;
+                }
+                throw error;
+            }
 
             if (type === 'salida') await cancelAllNotifications();
 
@@ -220,7 +303,8 @@ const UserDashboard = () => {
             showAlert('❌ Ups...', `Hubo un inconveniente: ${error.message}`, 'error');
         } finally {
             setLoading(false);
-            isClocking.current = false; // Liberamos el bloqueo síncrono
+            isClocking.current = false; // Liberamos el bloqueo síncrono de instancia
+            isGlobalClockingInProgress = false; // Liberamos el bloqueo síncrono de módulo
         }
     };
 
@@ -282,11 +366,11 @@ const UserDashboard = () => {
                     <View style={styles.actionsContainer}>
                         <TouchableOpacity
                             onPress={() => handleFichaje('entrada')}
-                            disabled={(todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida) || loading}
+                            disabled={(todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida) || loading || initialLoading}
                             style={[
                                 styles.actionButton,
                                 styles.btnSuccess,
-                                ((todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida) || loading) && styles.btnDisabled
+                                ((todayTurns.length > 0 && !todayTurns[todayTurns.length - 1].salida) || loading || initialLoading) && styles.btnDisabled
                             ]}
                         >
                             <Text style={styles.actionButtonTitle}>FICHAR ENTRADA</Text>
@@ -295,11 +379,11 @@ const UserDashboard = () => {
 
                         <TouchableOpacity
                             onPress={() => handleFichaje('salida')}
-                            disabled={todayTurns.length === 0 || !!todayTurns[todayTurns.length - 1].salida || loading}
+                            disabled={todayTurns.length === 0 || !!todayTurns[todayTurns.length - 1].salida || loading || initialLoading}
                             style={[
                                 styles.actionButton,
                                 styles.btnError,
-                                (todayTurns.length === 0 || !!todayTurns[todayTurns.length - 1].salida || loading) && styles.btnDisabled
+                                (todayTurns.length === 0 || !!todayTurns[todayTurns.length - 1].salida || loading || initialLoading) && styles.btnDisabled
                             ]}
                         >
                             <Text style={styles.actionButtonTitle}>FICHAR SALIDA</Text>

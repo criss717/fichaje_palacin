@@ -19,9 +19,11 @@ const CustomAlert = ({
 }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
+    const isClosingRef = useRef(false);
 
     useEffect(() => {
         if (visible) {
+            isClosingRef.current = false;
             Animated.parallel([
                 Animated.timing(fadeAnim, {
                     toValue: 1,
@@ -37,18 +39,21 @@ const CustomAlert = ({
 
             if (autoClose) {
                 const timer = setTimeout(() => {
-                    handleClose();
+                    handleClose(true);
                 }, autoCloseDuration);
                 return () => clearTimeout(timer);
             }
         } else {
+            isClosingRef.current = false;
             fadeAnim.setValue(0);
             slideAnim.setValue(50);
         }
     }, [visible]);
 
-    const handleClose = () => {
-        if (!cancelable && visible) return; // Prevent closing if non-cancelable
+    const handleClose = (force = false) => {
+        if (!force && !cancelable && visible) return; // Prevent closing if non-cancelable unless forced by button action
+        if (isClosingRef.current) return;
+        isClosingRef.current = true;
 
         Animated.parallel([
             Animated.timing(fadeAnim, {
@@ -62,8 +67,23 @@ const CustomAlert = ({
                 useNativeDriver: true,
             }),
         ]).start(() => {
+            isClosingRef.current = false;
             if (onClose) onClose();
         });
+    };
+
+    const handleConfirmPress = () => {
+        if (isClosingRef.current) return;
+        isClosingRef.current = true;
+        if (onConfirm) {
+            // Cerramos primero el modal actual antes de ejecutar onConfirm,
+            // de modo que si onConfirm abre otro showAlert o tarda, no permita doble clic
+            if (onClose) onClose();
+            onConfirm();
+        } else {
+            isClosingRef.current = false;
+            handleClose(true);
+        }
     };
 
     if (!visible) return null;
@@ -88,7 +108,7 @@ const CustomAlert = ({
             transparent
             visible={visible}
             animationType="none"
-            onRequestClose={cancelable ? handleClose : () => { }}
+            onRequestClose={cancelable ? () => handleClose(false) : () => { }}
         >
             <View style={styles.overlay}>
                 <Animated.View
@@ -112,14 +132,14 @@ const CustomAlert = ({
                             {showCancelButton && onConfirm && (
                                 <TouchableOpacity
                                     style={[styles.button, styles.cancelButton, { borderColor: theme.color }]}
-                                    onPress={handleClose}
+                                    onPress={() => handleClose(true)}
                                 >
                                     <Text style={[styles.buttonText, { color: theme.color }]}>Cancelar</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
                                 style={[styles.button, { backgroundColor: theme.color }]}
-                                onPress={onConfirm ? () => { onConfirm(); handleClose(); } : handleClose}
+                                onPress={handleConfirmPress}
                             >
                                 <Text style={styles.buttonText}>{onConfirm ? confirmText : cancelText}</Text>
                             </TouchableOpacity>

@@ -9,11 +9,16 @@ export const AuthProvider = ({ children }) => {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const userRef = useRef(null); // Referencia para evitar cierres obsoletos en el listener
+    const profileRef = useRef(null); // Referencia para evitar cierre obsoleto de profile en onAuthStateChange
 
     useEffect(() => {
         // Sincronizar ref con estado
         userRef.current = user;
     }, [user]);
+
+    useEffect(() => {
+        profileRef.current = profile;
+    }, [profile]);
 
     useEffect(() => {
         console.log('AuthProvider: Iniciando verificación de sesión...');
@@ -47,15 +52,15 @@ export const AuthProvider = ({ children }) => {
                 console.log('AuthProvider: Cambio de usuario detectado, limpiando estado anterior...');
                 setLoading(true);
                 setProfile(null);
+                profileRef.current = null;
             }
 
+            userRef.current = nextUser;
             setUser(nextUser);
 
             if (nextUser) {
-                // Si es el mismo usuario, no recargamos necesariamente, pero por seguridad verificamos
-                // Si loading estaba true (por el if de arriba), recargamos
-                // O si profile es null
-                if (nextUser.id !== prevUser?.id || !profile) {
+                // Si es el mismo usuario y ya tenemos su perfil en ref, no recargamos
+                if (nextUser.id !== prevUser?.id || !profileRef.current) {
                     loadProfile(nextUser.id);
                 } else {
                     // Mismo usuario y perfil cargado, quitamos loading por si acaso
@@ -63,6 +68,7 @@ export const AuthProvider = ({ children }) => {
                 }
             } else {
                 setProfile(null);
+                profileRef.current = null;
                 setLoading(false);
             }
         });
@@ -79,6 +85,7 @@ export const AuthProvider = ({ children }) => {
                 .single();
 
             if (error) throw error;
+            profileRef.current = data;
             setProfile(data);
         } catch (error) {
             console.error('Error cargando perfil:', error.message);
@@ -116,6 +123,8 @@ export const AuthProvider = ({ children }) => {
             console.error('Error cerrando sesión:', error.message);
         } finally {
             // Siempre limpiar el estado local para asegurar que la UI responda
+            userRef.current = null;
+            profileRef.current = null;
             setUser(null);
             setProfile(null);
         }
